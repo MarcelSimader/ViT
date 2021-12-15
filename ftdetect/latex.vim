@@ -4,10 +4,10 @@
 " (c) Marcel Simader 2021
 
 " acts as include guard
-if exists("b:vimtex_did_filetypedetect")
+if exists("g:vimtex_did_filetypedetect")
     finish
 endif
-let b:vimtex_did_filetypedetect = 1
+let g:vimtex_did_filetypedetect = 1
 
 augroup VimTeXDetectFileType
     autocmd!

@@ -246,11 +246,11 @@ function VimTeXNewTemplate(name, keybind, inlinemode, finalcursoroffset, middlei
             return
         endif
         " calling insert
-        call SmartSurround(
-                    \ a:lstart, a:lend, cstart, cend,
-                    \ textbefore, textafter, a:middleindent,
-                    \ a:middleindent > 0
-                    \ )
+        call vimtexlib#SmartSurround(
+                            \ a:lstart, a:lend, cstart, cend,
+                            \ textbefore, textafter, a:middleindent,
+                            \ a:middleindent > 0
+                            \ )
         call cursor(a:lstart + get(a:finalcursoroffset, 0, 0),
                     \ endcol + get(a:finalcursoroffset, 1, 0))
     endfunction
