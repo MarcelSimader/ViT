@@ -28,6 +28,7 @@ function s:Config(name, value)
     endif
 endfunction
 
+call s:Config('g:vimtex_leader', "\<C-@>")
 call s:Config('g:vimtex_compiler', 'pdflatex')
 call s:Config('g:vimtex_compiler_flags', '')
 call s:Config('g:vimtex_error_regexp', '! .*')
@@ -355,39 +356,41 @@ endfunction
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATE DEFINITIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+let s:_ = g:vimtex_leader
+
 " ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
 
 " ~~~~~~~~~~ text mode
-call VimTeXNewTemplate('SEProblem',   '<C-@>p', 1, [4], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\problem', ''],                    [], 0)
-call VimTeXNewTemplate('SEProblemnr', '<C-@>P', 1, [5], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, 'Number: ')
+call VimTeXNewTemplate('SEProblem',   s:_.'p', 1, [4], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\problem', ''],                    [], 0)
+call VimTeXNewTemplate('SEProblemnr', s:_.'P', 1, [5], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, 'Number: ')
 
 " ~~~~~~~~~~ text envs
 call VimTeXNewTemplate('SEEnv',          '<C-E>',  0, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'],        1, 'Name: ')
-call VimTeXNewTemplate('SEEnum',         '<C-@>e', 0, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SEEnumLeft',     '<C-@>E', 0, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SEAlphEnum',     '<C-@>l', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SEAlphEnumLeft', '<C-@>L', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SECenter',       '<C-@>c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'],    0)
-call VimTeXNewTemplate('SETabular',      '<C-@>t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'],   1, 'Columns: ')
+call VimTeXNewTemplate('SEEnum',         s:_.'e', 0, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('SEEnumLeft',     s:_.'E', 0, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('SEAlphEnum',     s:_.'l', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('SEAlphEnumLeft', s:_.'L', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('SECenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'],    0)
+call VimTeXNewTemplate('SETabular',      s:_.'t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'],   1, 'Columns: ')
 
 " ~~~~~~~~~~ math envs
-call VimTeXNewTemplate('SEEquation', '<C-@>q', 0, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'], 0)
-call VimTeXNewTemplate('SEGather',   '<C-@>g', 0, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'],   0)
-call VimTeXNewTemplate('SEAlign',    '<C-@>a', 0, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'],    0)
-call VimTeXNewTemplate('SEAlignAt',  '<C-@>A', 0, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'],  1, 'Columns: ')
-call VimTeXNewTemplate('SEProof',    '<C-@>r', 0, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'],     0)
-call VimTeXNewTemplate('SEMatrix',   '<C-@>m', 0, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'],    1, 'Columns: ')
+call VimTeXNewTemplate('SEEquation', s:_.'q', 0, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'], 0)
+call VimTeXNewTemplate('SEGather',   s:_.'g', 0, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'],   0)
+call VimTeXNewTemplate('SEAlign',    s:_.'a', 0, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'],    0)
+call VimTeXNewTemplate('SEAlignAt',  s:_.'A', 0, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'],  1, 'Columns: ')
+call VimTeXNewTemplate('SEProof',    s:_.'r', 0, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'],     0)
+call VimTeXNewTemplate('SEMatrix',   s:_.'m', 0, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'],    1, 'Columns: ')
 
 " ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
 
-call VimTeXNewTemplate('SEMathMode',    '<C-@>$',    1, [0, 1],  0, ['$'],            ['$'],         0)
-call VimTeXNewTemplate('SEParentheses', '<C-@>1',    1, [0, 7],  0, ['\left( '],      [' \right)'],  0)
-call VimTeXNewTemplate('SEBrackets',    '<C-@>2',    1, [0, 7],  0, ['\left[ '],      [' \right]'],  0)
-call VimTeXNewTemplate('SEBraces',      '<C-@>3',    1, [0, 8],  0, ['\left\{ '],     [' \right\}'], 0)
-call VimTeXNewTemplate('SEBars',        '<C-@>4',    1, [0, 7],  0, ['\left| '],      [' \right|'],  0)
-call VimTeXNewTemplate('SEOverbrace',   '<C-@><F1>', 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'],      0)
-call VimTeXNewTemplate('SEUnderbrace',  '<C-@><F2>', 1, [0, 12], 0, ['\underbrace{'], ['}_{}'],      0)
-call VimTeXNewTemplate('SEBoxed',       '<C-@><F3>', 1, [0, 7],  0, ['\boxed{'],      ['}'],         0)
+call VimTeXNewTemplate('SEMathMode',    s:_.'$',    1, [0, 1],  0, ['$'],            ['$'],         0)
+call VimTeXNewTemplate('SEParentheses', s:_.'1',    1, [0, 7],  0, ['\left( '],      [' \right)'],  0)
+call VimTeXNewTemplate('SEBrackets',    s:_.'2',    1, [0, 7],  0, ['\left[ '],      [' \right]'],  0)
+call VimTeXNewTemplate('SEBraces',      s:_.'3',    1, [0, 8],  0, ['\left\{ '],     [' \right\}'], 0)
+call VimTeXNewTemplate('SEBars',        s:_.'4',    1, [0, 7],  0, ['\left| '],      [' \right|'],  0)
+call VimTeXNewTemplate('SEOverbrace',   s:_.'<F1>', 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'],      0)
+call VimTeXNewTemplate('SEUnderbrace',  s:_.'<F2>', 1, [0, 12], 0, ['\underbrace{'], ['}_{}'],      0)
+call VimTeXNewTemplate('SEBoxed',       s:_.'<F3>', 1, [0, 7],  0, ['\boxed{'],      ['}'],         0)
 
 " ~~~~~~~~~~~~~~~~~~~~ menu options ~~~~~~~~~~~~~~~~~~~~
 
@@ -402,6 +405,8 @@ call VimTeXNewTemplate('SEInf',  '', 1, [0, 6],  0, ['\inf_{'],  ['}'],    0)
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+unlet s:_
 
 " reset cpoptions as per :h usr_41
 let &cpo = s:save_cpo
