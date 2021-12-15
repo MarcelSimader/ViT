@@ -1,0 +1,6 @@
+# ignore test files
+test*
+
+# ignore all custom 'user' scripts
+user/
+
