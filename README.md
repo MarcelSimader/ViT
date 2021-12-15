@@ -9,7 +9,7 @@ Changes are made to my whim, or vim...  I'll see myself out.
 Using ``plugged`` the process is quite easy, just add this to your ``.vimrc``:
 ```vimscript
 call plug#begin('path-to-plugin-directory')
-Plug 'MarcelSimader/vimtextended'
+Plug 'MarcelSimader/VimTeXtended'
 call plug#end()
 ```
 
