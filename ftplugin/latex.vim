@@ -3,8 +3,40 @@
 " Date: 28.11.2021
 " (c) Marcel Simader 2021
 
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ DEBUG ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+if !exists('*s:LoadTeXTended')
+    function! s:LoadTeXTended()
+        if &ft != 'latex'
+            return
+        endif
+        " set 'did' vars to false
+        unlet b:vimtex_did_filetype b:vimtex_did_syntax
+                    \ b:vimtex_did_indent g:vimtex_did_filetypedetect
+        " reload scripts
+        let start = reltime()
+        runtime autoload/vimtexlib.vim
+        runtime indent/latex.vim
+        runtime syntax/latex.vim
+        runtime ftplugin/latex.vim
+        runtime ftdetect/latex.vim
+        runtime user/sexercise.vim
+        echohl StatusLineTerm
+        echomsg 'Loading took '
+                    \ .string(reltimefloat(reltime(start)) * 1000.0)
+                    \ .'ms'
+    endfunction
+    command VimTeXLoadLocal :call <SID>LoadTeXTended()
+endif
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ /DEBUG ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 " Start with LaTeX. This will also define b:did_ftplugin
-runtime **/ftplugin/tex.vim
+runtime ftplugin/tex.vim
 
 " acts as include guard
 if exists("b:vimtex_did_filetype")
@@ -22,13 +54,21 @@ set cpo&vim
 
 " Adds a new VimTeXtended global config option. This only defines the
 " vars once, and makes sure user wishes are granted. Merry Christmas.
-function s:Config(name, value)
-    if !exists(a:name)
-        let {a:name} = a:value
-    endif
+" It also sets an optional default value if the assignment failed with
+" the initially requested value.
+function s:Config(name, value, default = v:none)
+    try
+        if !exists(a:name)
+            let {a:name} = a:value
+        endif
+    catch
+        if a:default != v:none
+            let {a:name} = default
+        endif
+    endtry
 endfunction
 
-call s:Config('g:vimtex_leader', "\<C-@>")
+call s:Config('g:vimtex_leader', '<C-@>')
 call s:Config('g:vimtex_compiler', 'pdflatex')
 call s:Config('g:vimtex_compiler_flags', '')
 call s:Config('g:vimtex_error_regexp', '! .*')
@@ -36,7 +76,11 @@ call s:Config('g:vimtex_jump_chars', [' ', '(', '[', '{'])
 call s:Config('g:vimtex_comment_line', '% '.repeat('~', 70))
 " TODO: wrap this in try-catch
 " read latex commands from file
-call s:Config('g:vimtex_commands', readfile(findfile('latex_commands.txt')))
+call s:Config('g:vimtex_commands', readfile(findfile('latex_commands.txt')), [])
+call s:Config('g:vimtex_autosurround_chars', [
+            \ ['(', ')'], ['[', ']'], ['{', '}'],
+            \ ['$', '$']
+            \ ])
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ OPTIONS ~~~~~~~~~~~~~~~~~~~~
@@ -66,14 +110,16 @@ let b:indentLine_enabled = 0
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Automatically insert second X and move in the middle X<Cursor>X
-inoremap <buffer> $ $$<C-O>h
-inoremap <buffer> ( ()<C-O>h
-inoremap <buffer> [ []<C-O>h
-inoremap <buffer> { {}<C-O>h
+for s:char in g:vimtex_autosurround_chars
+    if len(s:char) == 2
+        execute 'inoremap <buffer> '.s:char[0].' '.s:char[0].s:char[1].'<C-O>h'
+    endif
+endfor
+unlet s:char
 
 " quick compiling
-nnoremap <buffer> " :SECompile<CR>
-nnoremap <buffer> ! :SECompile!<CR>
+nnoremap <buffer> " :VimTeXCompile<CR>
+nnoremap <buffer> ! :VimTeXCompile!<CR>
 
 " map vim completion to <C-Space><C-Space> and <C-Space><Space>
 inoremap <buffer> <C-@><C-@> <C-X><C-U>
@@ -102,7 +148,7 @@ inoremap <buffer> <S-Tab> <C-O>:call <SID>SmartMoveCursorRight(line('.'), col('.
 " ~~~~~~~~~~~~~~~~~~~~ COMMANDS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-command -buffer -bang SECompile call <SID>VimTeXCompile(expand('%:p'), expand('%:p:h'), '<bang>')
+command -buffer -bang VimTeXCompile call <SID>VimTeXCompile(expand('%:p'), expand('%:p:h'), '<bang>')
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ AUTOCOMMANDS ~~~~~~~~~~~~~~~~~~~~
@@ -111,7 +157,7 @@ command -buffer -bang SECompile call <SID>VimTeXCompile(expand('%:p'), expand('%
 " auto compiling
 augroup VimTeXCompile
     autocmd!
-    autocmd BufWritePost <buffer> :SECompile!
+    autocmd BufWritePost <buffer> :VimTeXCompile!
 augroup END
 
 " automatic completion-insert detection, triggering
@@ -147,9 +193,9 @@ endfunction
 " Arguments:
 "   filepath, the path to the file
 "   pwd, the path to the working directory (should be folder of
-"     'filepath' resides in)
+"       'filepath' resides in)
 "   [silent,] can be '!' to be executed as background job, otherwise
-"     open a new terminal window
+"       open a new terminal window
 "   [flags,] can be set to pass flags to the compiler
 function s:VimTeXCompile(filepath, pwd, silent = '', flags = '')
     " save file
@@ -178,7 +224,8 @@ endfunction
 " 'inputnames' is the user prompt text in the same order. The rest
 " parameter holds an arbitrary number of arrays containing lines that
 " will have their '#1, #2, ...' replaced.
-" Returns: 0 if the user aborted the completion, 1 otherwise
+" Returns:
+"   0 if the user aborted the completion, 1 otherwise
 function s:VimTeXPromptTemplateCompletion(numargs, inputnames, ...)
     " replace template strings
     for i in range(1, a:numargs)
@@ -199,26 +246,31 @@ endfunction
 
 " Sets up a new VimTeXtended template. These templates are used
 " for the insert mode completion, and are also set up as command.
-" Parameters:
+" Arguments:
 "   name, the name of the command to be defined
 "   keybind, the keybind to access this command, or '' for no keybind
 "   inlinemode, '0' for no inline mode, '1' for inline mode
+"   completionitem, whether to make this tempalte an auto-completion
+"       entry upon creating the command (and possibly keybinds),
+"       the call to 'VimTeXNewCompletionOption' will be made using
+"       the first item of 'textbefore'
 "   finalcursoroffset, the position that the cursor will be set to
-"     upon completing the template
+"       upon completing the template
 "   middleindent, the indent of text that the template surrounds in
-"     surround mode
+"       surround mode
 "   textbefore, an array of lines for the before-text
 "   textafter, an array of lines for the after-text
 "   numargs, the number of template parameters '#1, #2, ...' in the
-"     'text(before|after)' arguments
+"       'text(before|after)' arguments
 "   ..., the rest parameter contains the names of the template
-"      parameters, see 'VimTeXPromptTemplateCompletion'
-function VimTeXNewTemplate(name, keybind, inlinemode, finalcursoroffset, middleindent,
-            \ textbefore, textafter, numargs, ...)
+"        parameters, see 'VimTeXPromptTemplateCompletion'
+function VimTeXNewTemplate(name, keybind, inlinemode, completionitem,
+            \ finalcursoroffset, middleindent, textbefore, textafter, numargs, ...)
     " rename so we can use it in the closure
-    let [textbefore, textafter, inputnames] = [a:textbefore, a:textafter, a:000]
+    let inputnames = a:000
     " ~~~~~~~~~~ command function
     function s:VimTeXNewCommandSub_{a:name}(lstart, lend, mode = 'i') closure
+        let [textbefore, textafter] = [a:textbefore, a:textafter]
         let endcol = col('.')
         " templating
         if !s:VimTeXPromptTemplateCompletion(a:numargs, inputnames,
@@ -250,7 +302,6 @@ function VimTeXNewTemplate(name, keybind, inlinemode, finalcursoroffset, middlei
         call vimtexlib#SmartSurround(
                             \ a:lstart, a:lend, cstart, cend,
                             \ textbefore, textafter, a:middleindent,
-                            \ a:middleindent > 0
                             \ )
         call cursor(a:lstart + get(a:finalcursoroffset, 0, 0),
                     \ endcol + get(a:finalcursoroffset, 1, 0))
@@ -271,7 +322,7 @@ endfunction
 "   name, the name of the command in the completion menu
 "   command, the name of the command to execute upon insertion
 "   [mode,] defualts to 'i', the mode that is passed to the command
-"     this must be a valid vim mode (i, V, v, ...)
+"       this must be a valid vim mode (i, V, v, ...)
 function VimTeXNewCompletionOption(name, command, mode = 'i')
     " remove options with same name from list
     let idx = index(g:vimtex_commands, a:name)
@@ -336,7 +387,6 @@ function s:VimTeXCompletionDetection()
     if empty(get(match, 0, '')) || empty(get(match, 1, ''))
         return
     endif
-
     " construct new line with removed 'word'
     let lnum = line('.')
     let line = getline(lnum)
@@ -347,9 +397,9 @@ function s:VimTeXCompletionDetection()
                 \.strpart(line, wordidx + wordlen, 999999)
     " insert newline
     call setline(lnum, newline)
-    call setpos('.', [bufnr(), lnum, wordidx])
+    call setpos('.', [bufnr(), lnum, wordidx + 1])
     " execute command given by item
-    execute join(match, ' ')
+    execute trim(join(match[1:], ' '))
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -361,46 +411,46 @@ let s:_ = g:vimtex_leader
 " ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
 
 " ~~~~~~~~~~ text mode
-call VimTeXNewTemplate('SEProblem',   s:_.'p', 1, [4], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\problem', ''],                    [], 0)
-call VimTeXNewTemplate('SEProblemnr', s:_.'P', 1, [5], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, 'Number: ')
+call VimTeXNewTemplate('VimTeXProblem',   s:_.'p', 1, 0, [4], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\problem', ''],                    [], 0)
+call VimTeXNewTemplate('VimTeXProblemnr', s:_.'P', 1, 0, [5], 0, [g:vimtex_comment_line, g:vimtex_comment_line, g:vimtex_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, 'Number: ')
 
 " ~~~~~~~~~~ text envs
-call VimTeXNewTemplate('SEEnv',          '<C-E>',  0, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'],        1, 'Name: ')
-call VimTeXNewTemplate('SEEnum',         s:_.'e', 0, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SEEnumLeft',     s:_.'E', 0, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SEAlphEnum',     s:_.'l', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SEAlphEnumLeft', s:_.'L', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'], 0)
-call VimTeXNewTemplate('SECenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'],    0)
-call VimTeXNewTemplate('SETabular',      s:_.'t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'],   1, 'Columns: ')
+call VimTeXNewTemplate('VimTeXEnv',          '<C-E>', 0, 1, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'],        1, 'Name: ')
+call VimTeXNewTemplate('VimTeXEnum',         s:_.'e', 0, 1, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('VimTeXEnumLeft',     s:_.'E', 0, 1, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('VimTeXAlphEnum',     s:_.'l', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('VimTeXAlphEnumLeft', s:_.'L', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'], 0)
+call VimTeXNewTemplate('VimTeXCenter',       s:_.'c', 0, 1, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'],    0)
+call VimTeXNewTemplate('VimTeXTabular',      s:_.'t', 0, 1, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'],   1, 'Columns: ')
 
 " ~~~~~~~~~~ math envs
-call VimTeXNewTemplate('SEEquation', s:_.'q', 0, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'], 0)
-call VimTeXNewTemplate('SEGather',   s:_.'g', 0, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'],   0)
-call VimTeXNewTemplate('SEAlign',    s:_.'a', 0, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'],    0)
-call VimTeXNewTemplate('SEAlignAt',  s:_.'A', 0, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'],  1, 'Columns: ')
-call VimTeXNewTemplate('SEProof',    s:_.'r', 0, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'],     0)
-call VimTeXNewTemplate('SEMatrix',   s:_.'m', 0, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'],    1, 'Columns: ')
+call VimTeXNewTemplate('VimTeXEquation', s:_.'q', 0, 1, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'], 0)
+call VimTeXNewTemplate('VimTeXGather',   s:_.'g', 0, 1, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'],   0)
+call VimTeXNewTemplate('VimTeXAlign',    s:_.'a', 0, 1, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'],    0)
+call VimTeXNewTemplate('VimTeXAlignAt',  s:_.'A', 0, 1, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'],  1, 'Columns: ')
+call VimTeXNewTemplate('VimTeXProof',    s:_.'r', 0, 1, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'],     0)
+call VimTeXNewTemplate('VimTeXMatrix',   s:_.'m', 0, 1, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'],    1, 'Columns: ')
 
 " ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
 
-call VimTeXNewTemplate('SEMathMode',    s:_.'$',    1, [0, 1],  0, ['$'],            ['$'],         0)
-call VimTeXNewTemplate('SEParentheses', s:_.'1',    1, [0, 7],  0, ['\left( '],      [' \right)'],  0)
-call VimTeXNewTemplate('SEBrackets',    s:_.'2',    1, [0, 7],  0, ['\left[ '],      [' \right]'],  0)
-call VimTeXNewTemplate('SEBraces',      s:_.'3',    1, [0, 8],  0, ['\left\{ '],     [' \right\}'], 0)
-call VimTeXNewTemplate('SEBars',        s:_.'4',    1, [0, 7],  0, ['\left| '],      [' \right|'],  0)
-call VimTeXNewTemplate('SEOverbrace',   s:_.'<F1>', 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'],      0)
-call VimTeXNewTemplate('SEUnderbrace',  s:_.'<F2>', 1, [0, 12], 0, ['\underbrace{'], ['}_{}'],      0)
-call VimTeXNewTemplate('SEBoxed',       s:_.'<F3>', 1, [0, 7],  0, ['\boxed{'],      ['}'],         0)
+call VimTeXNewTemplate('VimTeXMathMode',    s:_.'$',    1, 1, [0, 1],  0, ['$'],            ['$'],         0)
+call VimTeXNewTemplate('VimTeXParentheses', s:_.'1',    1, 1, [0, 7],  0, ['\left( '],      [' \right)'],  0)
+call VimTeXNewTemplate('VimTeXBrackets',    s:_.'2',    1, 1, [0, 7],  0, ['\left[ '],      [' \right]'],  0)
+call VimTeXNewTemplate('VimTeXBraces',      s:_.'3',    1, 1, [0, 8],  0, ['\left\{ '],     [' \right\}'], 0)
+call VimTeXNewTemplate('VimTeXBars',        s:_.'4',    1, 1, [0, 7],  0, ['\left| '],      [' \right|'],  0)
+call VimTeXNewTemplate('VimTeXOverbrace',   s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'],      0)
+call VimTeXNewTemplate('VimTeXUnderbrace',  s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'],      0)
+call VimTeXNewTemplate('VimTeXBoxed',       s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'],         0)
 
 " ~~~~~~~~~~~~~~~~~~~~ menu options ~~~~~~~~~~~~~~~~~~~~
 
-call VimTeXNewTemplate('SEFrac', '', 1, [0, 6],  0, ['\frac{'],  ['}{}'],  0)
-call VimTeXNewTemplate('SESum',  '', 1, [0, 6],  0, ['\sum_{'],  ['}^{}'], 0)
-call VimTeXNewTemplate('SEInt',  '', 1, [0, 6],  0, ['\int_{'],  ['}^{}'], 0)
-call VimTeXNewTemplate('SEProd', '', 1, [0, 7],  0, ['\prod_{'], ['}^{}'], 0)
-call VimTeXNewTemplate('SELim',  '', 1, [0, 6],  0, ['\lim_{'],  ['}'],    0)
-call VimTeXNewTemplate('SESup',  '', 1, [0, 6],  0, ['\sup_{'],  ['}'],    0)
-call VimTeXNewTemplate('SEInf',  '', 1, [0, 6],  0, ['\inf_{'],  ['}'],    0)
+call VimTeXNewTemplate('VimTeXFrac', '', 1, [0, 6],  0, 1, ['\frac{'],  ['}{}'],  0)
+call VimTeXNewTemplate('VimTeXSum',  '', 1, [0, 6],  0, 1, ['\sum_{'],  ['}^{}'], 0)
+call VimTeXNewTemplate('VimTeXInt',  '', 1, [0, 6],  0, 1, ['\int_{'],  ['}^{}'], 0)
+call VimTeXNewTemplate('VimTeXProd', '', 1, [0, 7],  0, 1, ['\prod_{'], ['}^{}'], 0)
+call VimTeXNewTemplate('VimTeXLim',  '', 1, [0, 6],  0, 1, ['\lim_{'],  ['}'],    0)
+call VimTeXNewTemplate('VimTeXSup',  '', 1, [0, 6],  0, 1, ['\sup_{'],  ['}'],    0)
+call VimTeXNewTemplate('VimTeXInf',  '', 1, [0, 6],  0, 1, ['\inf_{'],  ['}'],    0)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~

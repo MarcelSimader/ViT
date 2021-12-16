@@ -6,7 +6,7 @@ Changes are made to my whim, or vim...  I'll see myself out.
 
 ## How to Install
 
-Using ``plugged`` the process is quite easy, just add this to your ``.vimrc``:
+Using ``vim-plug`` the process is quite easy, just add this to your ``.vimrc``:
 ```vimscript
 call plug#begin('path-to-plugin-directory')
 Plug 'MarcelSimader/VimTeXtended'

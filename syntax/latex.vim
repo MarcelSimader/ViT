@@ -4,7 +4,7 @@
 " (c) Marcel Simader 2021
 
 " load default LaTeX syntax
-runtime **/syntax/tex.vim
+runtime syntax/tex.vim
 
 " acts as include guard
 if exists("b:vimtex_did_syntax")

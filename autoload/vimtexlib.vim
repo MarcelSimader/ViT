@@ -80,7 +80,7 @@ endfunction
 "   textbefore, the text to appear before '[lstart, cstart]'
 "   textafter, the text to appear after '[lend, cend]'
 "   [middleindent,] when non-negative, sets the indent of lines
-"     between 'lstart' and 'lend'
+"       between 'lstart' and 'lend'
 " Returns:
 "   The end position of the cursor after the insert.
 function vimtexlib#SmartSurround(lstart, lend, cstart, cend,

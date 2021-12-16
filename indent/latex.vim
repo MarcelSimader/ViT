@@ -4,7 +4,7 @@
 " (c) Marcel Simader 2021
 
 " load tex syntax
-runtime **/indent/tex.vim
+runtime indent/tex.vim
 
 " acts as include guard
 if exists("b:vimtex_did_indent")
