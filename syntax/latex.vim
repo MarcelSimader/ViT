@@ -1,4 +1,4 @@
-" Syntax extensions for the vimTeXtended plugin.
+" Syntax extensions for the ViT plugin.
 " Author: Marcel Simader (marcel0simader@gmail.com)
 " Date: 08.12.2021
 " (c) Marcel Simader 2021
@@ -7,10 +7,10 @@
 runtime syntax/tex.vim
 
 " acts as include guard
-if exists("b:vimtex_did_syntax")
+if exists("b:vit_did_syntax")
     finish
 endif
-let b:vimtex_did_syntax = 1
+let b:vit_did_syntax = 1
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ SYNTAX EXTENSIONS ~~~~~~~~~~~~~~~~~~~~

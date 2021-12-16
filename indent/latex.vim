@@ -1,4 +1,4 @@
-" Indent extension for the VimTeXtended plugin.
+" Indent extension for the ViT plugin.
 " Author: Marcel Simader (marcel0simader@gmail.com)
 " Date: 09.12.2021
 " (c) Marcel Simader 2021
@@ -7,10 +7,10 @@
 runtime indent/tex.vim
 
 " acts as include guard
-if exists("b:vimtex_did_indent")
+if exists("b:vit_did_indent")
     finish
 endif
-let b:vimtex_did_indent = 1
+let b:vit_did_indent = 1
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ INDENT EXTENSIONS ~~~~~~~~~~~~~~~~~~~~

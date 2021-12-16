@@ -1,4 +1,4 @@
-" General 'library' functions for the VimTeXtended plugin.
+" General 'library' functions for the ViT plugin.
 " Author: Marcel Simader (marcel0simader@gmail.com)
 " Date: 15.12.2021
 " (c) Marcel Simader 2021
@@ -6,7 +6,7 @@
 " Returns the indent of argument 'str'. It takes into account
 " spaces and tabs, where tabs are counted by the value returned
 " by the 'shiftwidth()' function.
-function vimtexlib#StrIndent(str)
+function vitlib#StrIndent(str)
     " remove spaces from beginning and count to get indent
     let [str, indent] = [a:str, 0]
     while !empty(str) && (str[0] == ' ' || str[0] == "\t")
@@ -35,29 +35,29 @@ endfunction
 "   [end,] defaults to 'len(lines) - 1', the line to end on
 " Returns:
 "   The indented lines as new list.
-function vimtexlib#IndentLines(lines, indent, start = 0, end = len(a:lines) - 1)
+function vitlib#IndentLines(lines, indent, start = 0, end = len(a:lines) - 1)
     " early abort
     if a:end < a:start || a:indent < 0
         return a:lines
     endif
     " get smallest indent in lines
-    let minindent = min(map(a:lines[a:start:a:end], 'vimtexlib#StrIndent(v:val)'))
+    let minindent = min(map(a:lines[a:start:a:end], 'vitlib#StrIndent(v:val)'))
     " actual indenting by adding an offset to all (trimmed) strings
     " that makes the least indented line level with a:indent
     for i in range(a:start, a:end)
-        let indentstr = repeat(' ', vimtexlib#StrIndent(a:lines[i]) + (a:indent - minindent))
+        let indentstr = repeat(' ', vitlib#StrIndent(a:lines[i]) + (a:indent - minindent))
         let a:lines[i] = indentstr.trim(a:lines[i])
     endfor
     return a:lines
 endfunction
 
 " Inserts the lines in argument 'lines' with indent of 'indent'
-" (see 'vimtexlib#IndentLines') at position 'lnum'. Line 'lnum'
+" (see 'vitlib#IndentLines') at position 'lnum'. Line 'lnum'
 " is overwritten, and the rest of the lines are inserted after it.
 " Returns:
 "   The end position of the cursor after the insert.
-function vimtexlib#SmartInsert(lnum, lines, indent)
-    call vimtexlib#IndentLines(a:lines, a:indent)
+function vitlib#SmartInsert(lnum, lines, indent)
+    call vitlib#IndentLines(a:lines, a:indent)
     " set first line
     call setline(a:lnum, get(a:lines, 0, ''))
     " insert other lines
@@ -71,7 +71,7 @@ endfunction
 " offsets given by 'cstart', 'cend' with the text 'textbefore' and
 " 'textafter'. When 'middleindent' is set to a non-negative value,
 " the surrounded lines are indented by that number (see
-" 'vimtexlib#IndentLines').
+" 'vitlib#IndentLines').
 " Arguments:
 "   lstart, the start line in the current buffer
 "   lend, the end line in the current buffer
@@ -83,7 +83,7 @@ endfunction
 "       between 'lstart' and 'lend'
 " Returns:
 "   The end position of the cursor after the insert.
-function vimtexlib#SmartSurround(lstart, lend, cstart, cend,
+function vitlib#SmartSurround(lstart, lend, cstart, cend,
             \ textbefore, textafter, middleindent = -1)
     let startindent = indent(a:lstart)
     " construct lines
@@ -124,7 +124,7 @@ function vimtexlib#SmartSurround(lstart, lend, cstart, cend,
     endif
     " indent
     if a:middleindent >= 0
-        call vimtexlib#IndentLines(lines, a:middleindent, 1, len(lines) - 2)
+        call vitlib#IndentLines(lines, a:middleindent, 1, len(lines) - 2)
     endif
     " delete lines so we don't copy the middle ones
     call deletebufline(bufname(), a:lstart + 1, a:lend)
