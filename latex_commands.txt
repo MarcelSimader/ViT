@@ -135,6 +135,8 @@
 \ldots
 \mathbb{
 \mathbb{N}
+\mathbb{N}_0
+\mathbb{Z}
 \mathbb{Q}
 \mathbb{R}
 \mathcal{

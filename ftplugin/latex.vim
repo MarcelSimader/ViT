@@ -27,6 +27,7 @@ if !exists('*s:LoadTeXTended')
         echomsg 'Loading ViT took '
                     \ .string(reltimefloat(reltime(start)) * 1000.0)
                     \ .'ms'
+        echohl None
     endfunction
     command ViTLoadLocal :call <SID>LoadTeXTended()
 endif
@@ -71,6 +72,7 @@ endfunction
 call s:Config('g:vit_leader', '<C-@>')
 call s:Config('g:vit_compiler', 'pdflatex')
 call s:Config('g:vit_compiler_flags', '')
+call s:Config('g:vit_max_errors', 3)
 call s:Config('g:vit_error_regexp', '! .*')
 call s:Config('g:vit_error_line_regexp', '^l\.\d\+')
 call s:Config('g:vit_jump_chars', [' ', '(', '[', '{'])
@@ -126,22 +128,8 @@ inoremap <buffer> <C-@><Space> <C-X><C-U>
 " map \ to open autocomplete and write \
 imap <buffer> <BSlash> \<C-X><C-U>
 
-" Moves cursor to the right to simulate the <Tab> behavior in other IDEs.
-" Arguments:
-"   lnum, the target line number
-"   column, the minimum column for the cursor
-"   chars, a list of characters to consider for a new column
-function s:SmartMoveCursorRight(lnum, column, chars)
-    " do actual smart movey things
-    let line = getline(a:lnum)
-    let cols = []
-    for char in a:chars
-        let cols += [stridx(line, char, a:column - 1) + 2]
-    endfor
-    call filter(cols, 'v:val > a:column')
-    call cursor(a:lnum, len(cols) > 0 ? min(cols) : 999999)
-endfunction
-inoremap <buffer> <S-Tab> <C-O>:call <SID>SmartMoveCursorRight(line('.'), col('.'), g:vit_jump_chars)<CR>
+" cursor move
+inoremap <buffer> <S-Tab> <C-O>:call <SID>SmartMoveCursorRight()<CR>
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMMANDS ~~~~~~~~~~~~~~~~~~~~
@@ -166,39 +154,21 @@ augroup ViTCompletionDetection
     autocmd CompleteDone <buffer> :call <SID>ViTCompletionDetection()
 augroup END
 
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ HIGHLIGHTING GROUPS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+function s:Highlight(name, options = '')
+    if !hlexists(a:name)
+        execute 'hi '.a:name.' '.a:options
+    endif
+endfunction
+
+call s:Highlight('ViTErrorSign', 'ctermfg=Red ctermbg=DarkRed')
+
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-" we only wanna define this sign once, probably
-call sign_define('ViTError', #{text: '!>', texthl: 'ErrorMsg'})
-function ViTCompileCallback(job, exit)
-    if a:exit
-        " get log file of current file, if possible
-        try
-            let logfile = readfile(expand('%:r').'.log')
-            " create sign
-            let errorline = str2nr(trim(matchstr(logfile, g:vit_error_line_regexp)[2:]))
-            echomsg errorline
-            let b:signid = sign_place(
-                        \ 0, 'ViT', 'ViTError', bufname(), #{lnum: errorline})
-            " output error message
-            let errormsg = ': '.matchstr(logfile, g:vit_error_regexp)
-        catch /.*E484.*/
-            let errormsg = ', but no ".log" file found for this buffer.'
-        endtry
-        echohl ErrorMsg
-        echomsg "Compiled with Errors".errormsg
-    else
-        " remove old sign
-        if exists('b:signid')
-            call sign_unplace('ViT', #{id: b:signid})
-        endif
-        echohl MoreMsg
-        echo "Compiled Succesfully! Yay!"
-    endif
-    echohl None
-endfunction
 
 " Compiles the contents of a file using the configured LaTeX compiler.
 " Arguments:
@@ -215,16 +185,55 @@ function s:ViTCompile(filepath, pwd, silent = '', flags = '')
     if a:silent == '!'
         " run background job
         let s:se_latex_currjob = job_start(
-            \ g:vit_compiler.' -halt-on-error '.g:vit_compiler_flags.' '.a:flags.' "'.a:filepath.'"',
-            \ {'exit_cb': 'ViTCompileCallback', 'cwd': a:pwd}
-            \ )
+            \ g:vit_compiler.' --interaction=nonstopmode'
+            \     .g:vit_compiler_flags.' '.a:flags.' "'.a:filepath.'"',
+            \ {'exit_cb': 'ViTCompileCallback', 'cwd': a:pwd})
     else
         " open terminal
         :vertical :belowright call term_start(
-            \ g:vit_compiler.' '.g:vit_compiler_flags.' '.a:flags.' "'.a:filepath.'"',
-            \ {'term_finish': 'close', 'cwd': a:pwd}
-            \ )
+            \ g:vit_compiler.' '.g:vit_compiler_flags.' '
+            \     .a:flags.' "'.a:filepath.'"',
+            \ {'term_finish': 'close', 'cwd': a:pwd})
     endif
+endfunction
+
+" we only wanna define this sign once, probably
+if g:vit_max_errors > 0
+    call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
+endif
+function ViTCompileCallback(job, exit)
+    " remove old signs
+    if g:vit_max_errors > 0 | call sign_unplace('ViT') | endif
+    " success
+    if a:exit == 0
+        echohl MoreMsg | echo 'Compiled Succesfully! Yay!' | echohl None
+        return
+    endif
+    " failure without error
+    if g:vit_max_errors <= 0
+        echohl ErrorMsg | echomsg 'Compiled With Errors! Yikes!' | echohl None
+        return
+    endif
+    " failure with errors
+    " get log file of current file, if possible
+    try
+        let logfile = readfile(expand('%:r').'.log')
+        " get line matches
+        let errorlines = vitlib#AllMatchStr(
+                    \ logfile, g:vit_error_line_regexp, g:vit_max_errors)
+        " create signs
+        for errorline in errorlines
+            let errorline = str2nr(trim(errorline[2:]))
+            call sign_place(
+                        \ 0, 'ViT', 'ViTError',
+                        \ bufname(), #{lnum: errorline})
+        endfor
+        " get first error message
+        let errormsg = ': '.matchstr(logfile, g:vit_error_regexp)
+    catch /.*E484.*/
+        let errormsg = ', but no ".log" file found for this buffer.'
+    endtry
+    echohl ErrorMsg | echomsg "Compiled with Errors".errormsg | echohl None
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -284,8 +293,7 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
         let [textbefore, textafter] = [a:textbefore, a:textafter]
         let endcol = col('.')
         " templating
-        if !s:ViTPromptTemplateCompletion(a:numargs, inputnames,
-                    \ textbefore, textafter)
+        if !s:ViTPromptTemplateCompletion(a:numargs, inputnames, textbefore, textafter)
             return
         endif
         " setting cursor and line based on mode
@@ -300,13 +308,9 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
             " character insert mode
             let [cstart, cend] = [col("'<"), col("'>") + 1]
             " possibly flip start and end cols
-            if cstart > cend
-                let [cstart, cend] = [cend, cstart]
-            endif
+            if cstart > cend | let [cstart, cend] = [cend, cstart] | endif
         else
-            echohl ErrorMsg
-            echomsg 'Unknown mode '.a:mode.'.'
-            echohl None
+            echoerr 'Unknown mode "'.a:mode.'".'
             return
         endif
         " calling insert
@@ -318,7 +322,8 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
                     \ endcol + get(a:finalcursoroffset, 1, 0))
     endfunction
     " ~~~~~~~~~~ command
-    execute 'command -buffer -range -nargs=? '.a:name.' :call <SID>ViTNewCommandSub_'.a:name.'(<line1>, <line2>, "<args>")'
+    execute 'command -buffer -range -nargs=? '.a:name
+                \ .' :call <SID>ViTNewCommandSub_'.a:name.'(<line1>, <line2>, "<args>")'
     " ~~~~~~~~~~ keymap
     if a:keybind != ''
         execute 'inoremap <buffer> '.a:keybind.' <C-O>:'.a:name.' i<CR>'
@@ -337,14 +342,11 @@ endfunction
 function ViTNewCompletionOption(name, command, mode = 'i')
     " remove options with same name from list
     let idx = index(g:vit_commands, a:name)
-    if idx != -1
-        call remove(g:vit_commands, idx)
-    endif
+    if idx != -1 | call remove(g:vit_commands, idx) | endif
     " add new item to list
     let g:vit_commands += [{
                 \ 'word': a:name,
-                \ 'user_data': 'se_latex_'.a:command.'_'.a:mode
-                \ }]
+                \ 'user_data': 'se_latex_'.a:command.'_'.a:mode}]
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -370,14 +372,12 @@ function ViTCompleteFunc(findstart, base)
         elseif type(command) == v:t_dict
             let commandtext = command['word']
         else
-            echohl ErrorMsg
-            echomsg 'Unknown type in ViTCompleteFunc: '.type(command)
-            echohl None
+            echoerr 'Unknown completion item type "'.type(command).'".'
             continue
         endif
         " add only if a:base is in commandtext
         if stridx(commandtext, a:base) != -1
-            call add(matches, command)
+            let matches += [command]
         endif
     endfor
     return matches
@@ -399,11 +399,8 @@ function s:ViTCompletionDetection()
         return
     endif
     " construct new line with removed 'word'
-    let lnum = line('.')
-    let line = getline(lnum)
-    let col = col(lnum)
-    let wordidx = strridx(line, item['word'])
-    let wordlen = strlen(item['word'])
+    let [lnum, col, line] = [line('.'), col('.'), getline('.')]
+    let [wordlen, wordidx] = [strlen(item['word']), strridx(line, item['word'])]
     let newline = strpart(line, 0, wordidx)
                 \.strpart(line, wordidx + wordlen, 999999)
     " insert newline
@@ -463,11 +460,58 @@ call ViTNewTemplate('ViTLim',  '', 1, [0, 6],  0, 1, ['\lim_{'],  ['}'],    0)
 call ViTNewTemplate('ViTSup',  '', 1, [0, 6],  0, 1, ['\sup_{'],  ['}'],    0)
 call ViTNewTemplate('ViTInf',  '', 1, [0, 6],  0, 1, ['\inf_{'],  ['}'],    0)
 
+unlet s:_
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Moves cursor to the right to simulate the <Tab> behavior in other IDEs.
+" Arguments:
+"   [chars,] defaults to 'g:vit_jump_chars', a list of characters to
+"       consider for a new column
+function s:SmartMoveCursorRight(chars = g:vit_jump_chars)
+    let [lnum, col, line] = [line('.'), col('.'), getline('.')]
+    " do actual smart movey things
+    let cols = []
+    for char in a:chars
+        let cols += [stridx(line, char, col - 1) + 2]
+    endfor
+    call filter(cols, 'v:val > col')
+    call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
+endfunction
+
+function CurrentTeXEnv()
+    let flags = 'bnWz'
+    " search for \begin{\w+} \end{\w+}
+    let [lnum, col] = searchpairpos('\\begin{[A-Za-z0-9*_-]\+}', '',
+                                  \ '\\end{[A-Za-z0-9*_-]\+}', flags)
+    " now we get 'envname}...'
+    let envname = getline(lnum)[col + 6:]
+    " now we get 'envname'
+    let envname = envname[:stridx(envname, '}') - 1]
+    return envname
+endfunction
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ STATUSLINE ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+if exists('*airline#add_statusline_func')
+    " airline is installed
+    function ViTAirline(...)
+        let w:airline_section_c = airline#section#create_left(
+                    \ ['file', '%{CurrentTeXEnv()}'])
+    endfunction
+    call airline#add_statusline_func('ViTAirline')
+else
+    " regular statusline
+    setlocal statusline=%f\ \|\ %{CurrentTeXEnv()}
+endif
+
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-unlet s:_
 
 " reset cpoptions as per :h usr_41
 let &cpo = s:save_cpo

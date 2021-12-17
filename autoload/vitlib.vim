@@ -3,6 +3,29 @@
 " Date: 15.12.2021
 " (c) Marcel Simader 2021
 
+" Returns all matches of 'pat' in the string 'expr' as list of strings.
+" Arguments:
+"   expr, the expression to match against
+"   pat, the pattern to look for
+"   [count,] defaults to -1 for 'as many as possible', maximum number
+"       of matches to look for
+function vitlib#AllMatchStr(expr, pat, count = -1)
+    let str = a:expr
+    let res = []
+    while !empty(str) && (a:count < 0 || len(res) < a:count)
+        let [match, idx; _] = matchstrpos(str, a:pat)
+        " no match
+        if empty(match)
+            break
+        endif
+        " add to results
+        let res += [match]
+        " shorten str
+        let str = str[idx + 1:]
+    endwhile
+    return res
+endfunction
+
 " Returns the indent of argument 'str'. It takes into account
 " spaces and tabs, where tabs are counted by the value returned
 " by the 'shiftwidth()' function.
