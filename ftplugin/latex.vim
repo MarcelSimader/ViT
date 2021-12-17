@@ -72,6 +72,7 @@ call s:Config('g:vit_leader', '<C-@>')
 call s:Config('g:vit_compiler', 'pdflatex')
 call s:Config('g:vit_compiler_flags', '')
 call s:Config('g:vit_error_regexp', '! .*')
+call s:Config('g:vit_error_line_regexp', '^l\.\d\+')
 call s:Config('g:vit_jump_chars', [' ', '(', '[', '{'])
 call s:Config('g:vit_comment_line', '% '.repeat('~', 70))
 call s:Config('g:vit_commands', readfile(findfile('latex_commands.txt')), [])
@@ -169,11 +170,19 @@ augroup END
 " ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+" we only wanna define this sign once, probably
+call sign_define('ViTError', #{text: '!>', texthl: 'ErrorMsg'})
 function ViTCompileCallback(job, exit)
     if a:exit
         " get log file of current file, if possible
         try
             let logfile = readfile(expand('%:r').'.log')
+            " create sign
+            let errorline = str2nr(trim(matchstr(logfile, g:vit_error_line_regexp)[2:]))
+            echomsg errorline
+            let b:signid = sign_place(
+                        \ 0, 'ViT', 'ViTError', bufname(), #{lnum: errorline})
+            " output error message
             let errormsg = ': '.matchstr(logfile, g:vit_error_regexp)
         catch /.*E484.*/
             let errormsg = ', but no ".log" file found for this buffer.'
@@ -181,8 +190,12 @@ function ViTCompileCallback(job, exit)
         echohl ErrorMsg
         echomsg "Compiled with Errors".errormsg
     else
+        " remove old sign
+        if exists('b:signid')
+            call sign_unplace('ViT', #{id: b:signid})
+        endif
         echohl MoreMsg
-        echomsg "Compiled Succesfully! Yay!"
+        echo "Compiled Succesfully! Yay!"
     endif
     echohl None
 endfunction
