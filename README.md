@@ -5,6 +5,8 @@ ViT is a witty plugin for Vim LaTeX support!  This project is in an incredibly e
 or vim...  I'll see myself out. But really, this project is basically an efficiency tool for
 myself, so if you want to use it that is on you.
 
+*The documentation is currently work in progress.*
+
 ## How to Install
 
 Using ``vim-plug`` the process is quite easy, just add this to your ``.vimrc``:
@@ -17,7 +19,7 @@ call plug#end()
 ## How to Contribute
 
 I have no idea to be honest, but you are welcome to. Just try to follow sensible style for
-the VimScript and open a feature branch -- or submit a Pull Request.
+the VimScript, open a feature branch, and submit a Pull Request.
 
 ## Other Notes
 
