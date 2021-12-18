@@ -17,12 +17,10 @@ if !exists('*s:LoadTeXTended')
                     \ b:vit_did_indent g:vit_did_filetypedetect
         " reload scripts
         let start = reltime()
-        runtime autoload/vitlib.vim
-        runtime indent/latex.vim
-        runtime syntax/latex.vim
-        runtime ftplugin/latex.vim
-        runtime ftdetect/latex.vim
-        runtime user/sexercise.vim
+        for file in ['autoload/vitlib.vim', 'indent/latex.vim', 'syntax/latex.vim',
+                    \'ftplugin/latex.vim', 'ftdetect/latex.vim', 'user/*.vim']
+            execute 'runtime '.file
+        endfor
         echohl StatusLineTerm
         echomsg 'Loading ViT took '
                     \ .string(reltimefloat(reltime(start)) * 1000.0)
@@ -59,13 +57,9 @@ set cpo&vim
 " the initially requested value.
 function s:Config(name, value, default = v:none)
     try
-        if !exists(a:name)
-            let {a:name} = a:value
-        endif
+        if !exists(a:name) | let {a:name} = a:value | endif
     catch
-        if a:default != v:none
-            let {a:name} = default
-        endif
+        if a:default != v:none | let {a:name} = default | endif
     endtry
 endfunction
 
@@ -76,6 +70,7 @@ call s:Config('g:vit_max_errors', 3)
 call s:Config('g:vit_error_regexp', '! .*')
 call s:Config('g:vit_error_line_regexp', '^l\.\d\+')
 call s:Config('g:vit_jump_chars', [' ', '(', '[', '{'])
+call s:Config('g:vit_template_remove_on_abort', '1')
 call s:Config('g:vit_comment_line', '% '.repeat('~', 70))
 call s:Config('g:vit_commands', readfile(findfile('latex_commands.txt')), [])
 call s:Config('g:vit_autosurround_chars', [
@@ -240,30 +235,6 @@ endfunction
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATING FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-" Replaces all appearances of '[#1, #2, ... #numargs]' in order, where
-" 'inputnames' is the user prompt text in the same order. The rest
-" parameter holds an arbitrary number of arrays containing lines that
-" will have their '#1, #2, ...' replaced.
-" Returns:
-"   0 if the user aborted the completion, 1 otherwise
-function s:ViTPromptTemplateCompletion(numargs, inputnames, ...)
-    " replace template strings
-    for i in range(1, a:numargs)
-        let currIn = input(get(a:inputnames, i - 1, 'Argument '.i.': '))
-        " if an input is empty, abort
-        if empty(currIn)
-            return 0
-        endif
-        " replace
-        for arr in a:000
-            for j in range(len(arr))
-                let arr[j] = substitute(arr[j], '#'.i, currIn, 'g')
-            endfor
-        endfor
-    endfor
-    return 1
-endfunction
-
 " Sets up a new ViT template. These templates are used for the insert mode
 " completion, and are also set up as command.
 " Arguments:
@@ -285,17 +256,12 @@ endfunction
 "   ..., the rest parameter contains the names of the template
 "        parameters, see 'ViTPromptTemplateCompletion'
 function ViTNewTemplate(name, keybind, inlinemode, completionitem,
-            \ finalcursoroffset, middleindent, textbefore, textafter, numargs, ...)
-    " rename so we can use it in the closure
-    let inputnames = a:000
+            \ finalcursoroffset, middleindent, textbefore, textafter,
+            \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
     " ~~~~~~~~~~ command function
     function s:ViTNewCommandSub_{a:name}(lstart, lend, mode = 'i') closure
         let [textbefore, textafter] = [a:textbefore, a:textafter]
         let endcol = col('.')
-        " templating
-        if !s:ViTPromptTemplateCompletion(a:numargs, inputnames, textbefore, textafter)
-            return
-        endif
         " setting cursor and line based on mode
         if a:mode == '' || (a:mode == 'i' && a:inlinemode == 1)
             " inline insert mode
@@ -310,14 +276,17 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
             " possibly flip start and end cols
             if cstart > cend | let [cstart, cend] = [cend, cstart] | endif
         else
-            echoerr 'Unknown mode "'.a:mode.'".'
-            return
+            throw 'Unknown mode "'.a:mode.'".'
         endif
         " calling insert
         call vitlib#SmartSurround(
                             \ a:lstart, a:lend, cstart, cend,
-                            \ textbefore, textafter, a:middleindent,
-                            \ )
+                            \ textbefore, textafter, a:middleindent)
+        " handle templating, if uit fails undo the insertion
+        if !vitlib#TemplateString(a:lstart, a:lend + len(textbefore) + len(textafter),
+                    \ 0, 999999, a:numargs, a:argname, a:argdefault, a:argcomplete)
+            if g:vit_template_remove_on_abort | undo | endif
+        endif
         call cursor(a:lstart + get(a:finalcursoroffset, 0, 0),
                     \ endcol + get(a:finalcursoroffset, 1, 0))
     endfunction
@@ -330,7 +299,9 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
         execute 'xnoremap <buffer> <expr> '.a:keybind.' ":'.a:name.' ".mode()."<CR>"'
     endif
     " ~~~~~~~~~~ default completion option
-    call ViTNewCompletionOption(a:textbefore[0], a:name)
+    if a:completionitem && len(a:textbefore) > 0
+        call ViTNewCompletionOption(a:textbefore[0], a:name)
+    endif
 endfunction
 
 " Adds a template command to the insert mode completion menu.
@@ -348,6 +319,58 @@ function ViTNewCompletionOption(name, command, mode = 'i')
                 \ 'word': a:name,
                 \ 'user_data': 'se_latex_'.a:command.'_'.a:mode}]
 endfunction
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ TEMPLATE DEFINITIONS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+let s:_ = g:vit_leader
+
+" ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
+
+" ~~~~~~~~~~ text mode
+call ViTNewTemplate('ViTProblem',   s:_.'p', 1, 0, [4], 0, [g:vit_comment_line, g:vit_comment_line, g:vit_comment_line, '\problem', ''],                    [])
+call ViTNewTemplate('ViTProblemnr', s:_.'P', 1, 0, [5], 0, [g:vit_comment_line, g:vit_comment_line, g:vit_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, ['Number: '])
+
+" ~~~~~~~~~~ text envs
+call ViTNewTemplate('ViTEnv',          '<C-E>', 0, 1, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'], 1, ['Name: '])
+call ViTNewTemplate('ViTEnum',         s:_.'e', 0, 1, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'])
+call ViTNewTemplate('ViTEnumLeft',     s:_.'E', 0, 1, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
+call ViTNewTemplate('ViTAlphEnum',     s:_.'l', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'])
+call ViTNewTemplate('ViTAlphEnumLeft', s:_.'L', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'])
+call ViTNewTemplate('ViTCenter',       s:_.'c', 0, 1, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
+call ViTNewTemplate('ViTTabular',      s:_.'t', 0, 1, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
+
+" ~~~~~~~~~~ math envs
+call ViTNewTemplate('ViTEquation', s:_.'q', 0, 1, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'])
+call ViTNewTemplate('ViTGather',   s:_.'g', 0, 1, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'])
+call ViTNewTemplate('ViTAlign',    s:_.'a', 0, 1, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'])
+call ViTNewTemplate('ViTAlignAt',  s:_.'A', 0, 1, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'], 1, ['Columns: '])
+call ViTNewTemplate('ViTProof',    s:_.'r', 0, 1, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'])
+call ViTNewTemplate('ViTMatrix',   s:_.'m', 0, 1, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'], 1, ['Columns: '])
+
+" ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
+
+call ViTNewTemplate('ViTMathMode',    s:_.'$',    1, 1, [0, 1],  0, ['$'],            ['$'])
+call ViTNewTemplate('ViTParentheses', s:_.'1',    1, 1, [0, 7],  0, ['\left( '],      [' \right)'])
+call ViTNewTemplate('ViTBrackets',    s:_.'2',    1, 1, [0, 7],  0, ['\left[ '],      [' \right]'])
+call ViTNewTemplate('ViTBraces',      s:_.'3',    1, 1, [0, 8],  0, ['\left\{ '],     [' \right\}'])
+call ViTNewTemplate('ViTBars',        s:_.'4',    1, 1, [0, 7],  0, ['\left| '],      [' \right|'])
+call ViTNewTemplate('ViTOverbrace',   s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
+call ViTNewTemplate('ViTUnderbrace',  s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
+call ViTNewTemplate('ViTBoxed',       s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'])
+
+" ~~~~~~~~~~~~~~~~~~~~ menu options ~~~~~~~~~~~~~~~~~~~~
+
+call ViTNewTemplate('ViTFrac', '', 1, 1, [0, 6], 0, ['\frac{'],  ['}{}'])
+call ViTNewTemplate('ViTSum',  '', 1, 1, [0, 6], 0, ['\sum_{'],  ['}^{}'])
+call ViTNewTemplate('ViTInt',  '', 1, 1, [0, 6], 0, ['\int_{'],  ['}^{}'])
+call ViTNewTemplate('ViTProd', '', 1, 1, [0, 7], 0, ['\prod_{'], ['}^{}'])
+call ViTNewTemplate('ViTLim',  '', 1, 1, [0, 6], 0, ['\lim_{'],  ['}'])
+call ViTNewTemplate('ViTSup',  '', 1, 1, [0, 6], 0, ['\sup_{'],  ['}'])
+call ViTNewTemplate('ViTInf',  '', 1, 1, [0, 6], 0, ['\inf_{'],  ['}'])
+
+unlet s:_
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPLETION ~~~~~~~~~~~~~~~~~~~~
@@ -372,8 +395,7 @@ function ViTCompleteFunc(findstart, base)
         elseif type(command) == v:t_dict
             let commandtext = command['word']
         else
-            echoerr 'Unknown completion item type "'.type(command).'".'
-            continue
+            throw 'Unknown completion item type "'.type(command).'".'
         endif
         " add only if a:base is in commandtext
         if stridx(commandtext, a:base) != -1
@@ -410,58 +432,6 @@ function s:ViTCompletionDetection()
     execute trim(join(match[1:], ' '))
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ TEMPLATE DEFINITIONS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-let s:_ = g:vit_leader
-
-" ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
-
-" ~~~~~~~~~~ text mode
-call ViTNewTemplate('ViTProblem',   s:_.'p', 1, 0, [4], 0, [g:vit_comment_line, g:vit_comment_line, g:vit_comment_line, '\problem', ''],                    [], 0)
-call ViTNewTemplate('ViTProblemnr', s:_.'P', 1, 0, [5], 0, [g:vit_comment_line, g:vit_comment_line, g:vit_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, 'Number: ')
-
-" ~~~~~~~~~~ text envs
-call ViTNewTemplate('ViTEnv',          '<C-E>', 0, 1, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'],        1, 'Name: ')
-call ViTNewTemplate('ViTEnum',         s:_.'e', 0, 1, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'], 0)
-call ViTNewTemplate('ViTEnumLeft',     s:_.'E', 0, 1, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'], 0)
-call ViTNewTemplate('ViTAlphEnum',     s:_.'l', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'], 0)
-call ViTNewTemplate('ViTAlphEnumLeft', s:_.'L', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'], 0)
-call ViTNewTemplate('ViTCenter',       s:_.'c', 0, 1, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'],    0)
-call ViTNewTemplate('ViTTabular',      s:_.'t', 0, 1, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'],   1, 'Columns: ')
-
-" ~~~~~~~~~~ math envs
-call ViTNewTemplate('ViTEquation', s:_.'q', 0, 1, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'], 0)
-call ViTNewTemplate('ViTGather',   s:_.'g', 0, 1, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'],   0)
-call ViTNewTemplate('ViTAlign',    s:_.'a', 0, 1, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'],    0)
-call ViTNewTemplate('ViTAlignAt',  s:_.'A', 0, 1, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'],  1, 'Columns: ')
-call ViTNewTemplate('ViTProof',    s:_.'r', 0, 1, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'],     0)
-call ViTNewTemplate('ViTMatrix',   s:_.'m', 0, 1, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'],    1, 'Columns: ')
-
-" ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
-
-call ViTNewTemplate('ViTMathMode',    s:_.'$',    1, 1, [0, 1],  0, ['$'],            ['$'],         0)
-call ViTNewTemplate('ViTParentheses', s:_.'1',    1, 1, [0, 7],  0, ['\left( '],      [' \right)'],  0)
-call ViTNewTemplate('ViTBrackets',    s:_.'2',    1, 1, [0, 7],  0, ['\left[ '],      [' \right]'],  0)
-call ViTNewTemplate('ViTBraces',      s:_.'3',    1, 1, [0, 8],  0, ['\left\{ '],     [' \right\}'], 0)
-call ViTNewTemplate('ViTBars',        s:_.'4',    1, 1, [0, 7],  0, ['\left| '],      [' \right|'],  0)
-call ViTNewTemplate('ViTOverbrace',   s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'],      0)
-call ViTNewTemplate('ViTUnderbrace',  s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'],      0)
-call ViTNewTemplate('ViTBoxed',       s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'],         0)
-
-" ~~~~~~~~~~~~~~~~~~~~ menu options ~~~~~~~~~~~~~~~~~~~~
-
-call ViTNewTemplate('ViTFrac', '', 1, [0, 6],  0, 1, ['\frac{'],  ['}{}'],  0)
-call ViTNewTemplate('ViTSum',  '', 1, [0, 6],  0, 1, ['\sum_{'],  ['}^{}'], 0)
-call ViTNewTemplate('ViTInt',  '', 1, [0, 6],  0, 1, ['\int_{'],  ['}^{}'], 0)
-call ViTNewTemplate('ViTProd', '', 1, [0, 7],  0, 1, ['\prod_{'], ['}^{}'], 0)
-call ViTNewTemplate('ViTLim',  '', 1, [0, 6],  0, 1, ['\lim_{'],  ['}'],    0)
-call ViTNewTemplate('ViTSup',  '', 1, [0, 6],  0, 1, ['\sup_{'],  ['}'],    0)
-call ViTNewTemplate('ViTInf',  '', 1, [0, 6],  0, 1, ['\inf_{'],  ['}'],    0)
-
-unlet s:_
-
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -482,7 +452,7 @@ function s:SmartMoveCursorRight(chars = g:vit_jump_chars)
 endfunction
 
 function CurrentTeXEnv()
-    let flags = 'bnWz'
+    let flags = 'bcnWz'
     " search for \begin{\w+} \end{\w+}
     let [lnum, col] = searchpairpos('\\begin{[A-Za-z0-9*_-]\+}', '',
                                   \ '\\end{[A-Za-z0-9*_-]\+}', flags)
@@ -500,10 +470,12 @@ endfunction
 if exists('*airline#add_statusline_func')
     " airline is installed
     function ViTAirline(...)
-        let w:airline_section_c = airline#section#create_left(
-                    \ ['file', '%{CurrentTeXEnv()}'])
+        if &ft == 'latex'
+            let w:airline_section_c = airline#section#create_left(
+                        \ ['file', '%{CurrentTeXEnv()}'])
+        endif
     endfunction
-    call airline#add_statusline_func('ViTAirline')
+    try | call airline#add_statusline_func('ViTAirline') | endtry
 else
     " regular statusline
     setlocal statusline=%f\ \|\ %{CurrentTeXEnv()}

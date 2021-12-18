@@ -1,6 +1,6 @@
 # ViT
 
-ViT is a whitty plugin for Vim LaTeX support!  This project is in an incredibly early stage,
+ViT is a witty plugin for Vim LaTeX support!  This project is in an incredibly early stage,
  don't rely on it in any way and don't expect anything of it. Changes are made to my whim,
 or vim...  I'll see myself out. But really, this project is basically an efficiency tool for
 myself, so if you want to use it that is on you.
@@ -16,7 +16,8 @@ call plug#end()
 
 ## How to Contribute
 
-I have no idea to be honest.
+I have no idea to be honest, but you are welcome to. Just try to follow sensible style for
+the VimScript and open a feature branch -- or submit a Pull Request.
 
 ## Other Notes
 

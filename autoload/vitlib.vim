@@ -3,25 +3,83 @@
 " Date: 15.12.2021
 " (c) Marcel Simader 2021
 
+" TODO: write docs for TemplateString
+function vitlib#TemplateString(lstart, lend, cstart, cend, numargs,
+            \ argnames = [], argdefaults = [], argcomplete = [])
+    " argument errors
+    if a:numargs < 1 | return 1 | endif
+    " set up variables
+    let [id, status, lines] = [42, 1, getline(a:lstart, a:lend)]
+    " put cursor on first col
+    let oldpos = getpos('.') | call cursor(a:lstart, a:cstart)
+    " for all arguments
+    for argidx in range(a:numargs)
+        let pat = '#'.(argidx + 1)
+        " get positions of replace items and highlight
+        let positions = map(vitlib#AllMatchStrPos(lines, pat),
+                    \ {_, val -> [a:lstart + val[1], val[2] + 1, val[3] - val[2]]})
+        call matchaddpos('Search', positions, 999, id) | redraw
+        " ask for input and search-and-replace every line
+        if empty(get(a:argcomplete, argidx, ''))
+            let text = input(get(a:argnames, argidx, 'Text: '),
+                        \ get(a:argdefaults, argidx, ''))
+        else
+            let text = input(get(a:argnames, argidx, 'Text: '),
+                        \ get(a:argdefaults, argidx, ''),
+                        \ get(a:argcomplete, argidx, ''))
+        endif
+        call matchdelete(id)
+        " check for abort
+        if empty(text) | let status = 0 | break | endif
+        for i in range(a:lstart, a:lend)
+            call setline(i, substitute(getline(i), pat, text, 'g'))
+        endfor
+    endfor
+    " restore cursor
+    call setpos('.', oldpos)
+    return status
+endfunction
+
+" This is a test
+" and here is #1, okay?
+" and here is #2
+" #1 again yup
+
 " Returns all matches of 'pat' in the string 'expr' as list of strings.
+" See 'vitlib#AllMatchStrPos' for more information on the arguments.
+function vitlib#AllMatchStr(expr, pat, count = -1)
+    return map(vitlib#AllMatchStrPos(a:expr, a:pat, a:count), 'get(v:val, 0, "")')
+endfunction
+
+" Returns all positions of  matches of 'pat' in the string 'expr' as list of lists.
+" Behaves like 'matchstrpos()'.
 " Arguments:
 "   expr, the expression to match against
 "   pat, the pattern to look for
 "   [count,] defaults to -1 for 'as many as possible', maximum number
 "       of matches to look for
-function vitlib#AllMatchStr(expr, pat, count = -1)
-    let str = a:expr
-    let res = []
+function vitlib#AllMatchStrPos(expr, pat, count = -1)
+    let [listmode, res, currline, curridx] = [type(a:expr) == v:t_list, [], 0, 0]
+    " wrap in list
+    let str = listmode ? a:expr : [a:expr]
+    " while list not empty
     while !empty(str) && (a:count < 0 || len(res) < a:count)
-        let [match, idx; _] = matchstrpos(str, a:pat)
+        let [match, line, idx, end] = matchstrpos(str, a:pat)
         " no match
-        if empty(match)
-            break
+        if empty(match) | break | endif
+        " shorten str
+        let str[line] = str[line][idx + 1:]
+        let str = str[line:]
+        " update global indices
+        if line > 0
+            let currline += line
+            let curridx = idx + 1
+        else
+            let curridx += idx + 1
         endif
         " add to results
-        let res += [match]
-        " shorten str
-        let str = str[idx + 1:]
+        let tmpres =  [curridx - 1, curridx - 1 + (end - idx)]
+        let res += [[match] + (listmode ? [currline] : []) + tmpres]
     endwhile
     return res
 endfunction
