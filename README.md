@@ -20,7 +20,7 @@ well.
 ## How to Contribute
 
 I have no idea to be honest, but you are welcome to. Just try to follow sensible style for
-the VimScript and open a feature branch -- or submit a Pull Request.
+the VimScript, open a feature branch, and submit a Pull Request.
 
 ## Other Notes
 
