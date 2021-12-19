@@ -17,8 +17,8 @@ if !exists('*s:LoadTeXTended')
                     \ b:vit_did_indent g:vit_did_filetypedetect
         " reload scripts
         let start = reltime()
-        for file in ['autoload/vitlib.vim', 'indent/latex.vim', 'syntax/latex.vim',
-                    \'ftplugin/latex.vim', 'ftdetect/latex.vim', 'user/*.vim']
+        for file in ['indent/latex.vim', 'syntax/latex.vim', 'ftplugin/latex.vim',
+                    \ 'ftdetect/latex.vim', 'user/*.vim']
             execute 'runtime '.file
         endfor
         echohl StatusLineTerm
@@ -70,7 +70,7 @@ call s:Config('g:vit_max_errors', 3)
 call s:Config('g:vit_error_regexp', '! .*')
 call s:Config('g:vit_error_line_regexp', '^l\.\d\+')
 call s:Config('g:vit_jump_chars', [' ', '(', '[', '{'])
-call s:Config('g:vit_template_remove_on_abort', '1')
+call s:Config('g:vit_template_remove_on_abort', 1)
 call s:Config('g:vit_comment_line', '% '.repeat('~', 70))
 call s:Config('g:vit_commands', readfile(findfile('latex_commands.txt')), [])
 call s:Config('g:vit_autosurround_chars', [
@@ -117,11 +117,11 @@ unlet s:char
 nnoremap <buffer> " :ViTCompile<CR>
 nnoremap <buffer> ! :ViTCompile!<CR>
 
-" map vim completion to <C-Space><C-Space> and <C-Space><Space>
-inoremap <buffer> <C-@><C-@> <C-X><C-U>
-inoremap <buffer> <C-@><Space> <C-X><C-U>
 " map \ to open autocomplete and write \
 imap <buffer> <BSlash> \<C-X><C-U>
+" map vim completion to <ViT><C-Space> and <ViT><Space>
+execute 'inoremap <buffer> '.g:vit_leader.'<Space> <C-X><C-U>'
+execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <C-X><C-U>'
 
 " cursor move
 inoremap <buffer> <S-Tab> <C-O>:call <SID>SmartMoveCursorRight()<CR>
@@ -214,7 +214,7 @@ function ViTCompileCallback(job, exit)
     try
         let logfile = readfile(expand('%:r').'.log')
         " get line matches
-        let errorlines = vitlib#AllMatchStr(
+        let errorlines = vimse#AllMatchStr(
                     \ logfile, g:vit_error_line_regexp, g:vit_max_errors)
         " create signs
         for errorline in errorlines
@@ -235,8 +235,7 @@ endfunction
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATING FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-" Sets up a new ViT template. These templates are used for the insert mode
-" completion, and are also set up as command.
+" Sets up a new ViT template.
 " Arguments:
 "   name, the name of the command to be defined
 "   keybind, the keybind to access this command, or '' for no keybind
@@ -260,8 +259,8 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
             \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
     " ~~~~~~~~~~ command function
     function s:ViTNewCommandSub_{a:name}(lstart, lend, mode = 'i') closure
-        let [textbefore, textafter] = [a:textbefore, a:textafter]
         let endcol = col('.')
+        let [textbefore, textafter] = [a:textbefore, a:textafter]
         " setting cursor and line based on mode
         if a:mode == '' || (a:mode == 'i' && a:inlinemode == 1)
             " inline insert mode
@@ -278,15 +277,23 @@ function ViTNewTemplate(name, keybind, inlinemode, completionitem,
         else
             throw 'Unknown mode "'.a:mode.'".'
         endif
-        " calling insert
-        call vitlib#SmartSurround(
+        " save undo state
+        let undostate = undotree()['seq_cur']
+        " insert
+        call vimse#SmartSurround(
                             \ a:lstart, a:lend, cstart, cend,
                             \ textbefore, textafter, a:middleindent)
-        " handle templating, if uit fails undo the insertion
-        if !vitlib#TemplateString(a:lstart, a:lend + len(textbefore) + len(textafter),
+        " handle templating
+        let result = vimse#TemplateString(a:lstart,
+                    \ a:lend + len(textbefore) + len(textafter),
                     \ 0, 999999, a:numargs, a:argname, a:argdefault, a:argcomplete)
-            if g:vit_template_remove_on_abort | undo | endif
+        " undo and return if result was false
+        if !result && g:vit_template_remove_on_abort
+            " set to 'undostate' for all other changes
+            " and undo once for this method
+            silent execute 'undo '.undostate | silent undo | return
         endif
+        " else set cursor pos in new text
         call cursor(a:lstart + get(a:finalcursoroffset, 0, 0),
                     \ endcol + get(a:finalcursoroffset, 1, 0))
     endfunction
@@ -308,8 +315,6 @@ endfunction
 " Arguments:
 "   name, the name of the command in the completion menu
 "   command, the name of the command to execute upon insertion
-"   [mode,] defualts to 'i', the mode that is passed to the command
-"       this must be a valid vim mode (i, V, v, ...)
 function ViTNewCompletionOption(name, command, mode = 'i')
     " remove options with same name from list
     let idx = index(g:vit_commands, a:name)
@@ -359,9 +364,6 @@ call ViTNewTemplate('ViTBars',        s:_.'4',    1, 1, [0, 7],  0, ['\left| '],
 call ViTNewTemplate('ViTOverbrace',   s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
 call ViTNewTemplate('ViTUnderbrace',  s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
 call ViTNewTemplate('ViTBoxed',       s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'])
-
-" ~~~~~~~~~~~~~~~~~~~~ menu options ~~~~~~~~~~~~~~~~~~~~
-
 call ViTNewTemplate('ViTFrac', '', 1, 1, [0, 6], 0, ['\frac{'],  ['}{}'])
 call ViTNewTemplate('ViTSum',  '', 1, 1, [0, 6], 0, ['\sum_{'],  ['}^{}'])
 call ViTNewTemplate('ViTInt',  '', 1, 1, [0, 6], 0, ['\int_{'],  ['}^{}'])
@@ -415,7 +417,7 @@ function s:ViTCompletionDetection()
         return
     endif
     " split into [WHOLE_MATCH, Command, mode, ...] or []
-    let match = matchlist(item['user_data'], 'se_latex_\([A-Za-z0-9\-]*\)_\([ivV]\?\)')
+    let match = matchlist(item['user_data'], 'se_latex_\([A-Za-z0-9\-]*\)_\([i]\?\)')
     " return if we did not find at least [WHOLE_MATCH, Command]
     if empty(get(match, 0, '')) || empty(get(match, 1, ''))
         return

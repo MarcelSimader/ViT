@@ -10,9 +10,12 @@ myself, so if you want to use it that is on you.
 Using ``vim-plug`` the process is quite easy, just add this to your ``.vimrc``:
 ```vimscript
 call plug#begin('path-to-plugin-directory')
+Plug 'MarcelSimader/VimSE'
 Plug 'MarcelSimader/ViT'
 call plug#end()
 ```
+ViT depends on the VimSE 'runtime library', so that plugin will need to be installed as
+well.
 
 ## How to Contribute
 
