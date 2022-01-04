@@ -30,7 +30,7 @@ ViT						    *vit* *vit-toc*
 
 ViT aims to be a fairly configurable, nicely integrated, and reliable plugin
 to aid in typesetting specifically mathematics in LaTeX. It comes with many
-predefined settings, commands, and tempaltes which can be used to start using
+predefined settings, commands, and templates which can help to start using
 ViT right away. The goal is to make ViT very intuitive and to take away as
 much repetitive typing effort as possible.
 
@@ -124,7 +124,11 @@ one command per line, with optional empty lines. One can replace this file and
 place it anywhere in the 'runtimepath' of Vim to use a different set of static
 completion items.
 Default value: >
-    let g:vit_commands = readfile(findfile('latex_commands.txt'))
+    try
+        let g:vit_commands = readfile(findfile('latex_commands.txt'))
+    catch
+	let g:vit_commands = []
+    endtry
 <
 ------------------------------------------------------------------------------
 2.k The *g:vit_autosurround_chars* option (list of [string, string] lists)

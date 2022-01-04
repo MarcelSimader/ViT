@@ -4,13 +4,10 @@
 " (c) Marcel Simader 2021
 
 " acts as include guard
-if exists("g:vit_did_filetypedetect")
+if exists("g:vit_did_ftdetect")
     finish
 endif
-let g:vit_did_filetypedetect = 1
+let g:vit_did_ftdetect = 1
 
-augroup VimTeXDetectFileType
-    autocmd!
-    autocmd BufNewFile,BufRead *.tex,*.latex set filetype=latex
-augroup END
+autocmd BufNewFile,BufRead *.tex,*.latex set filetype=latex
 
