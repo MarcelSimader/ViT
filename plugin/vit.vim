@@ -7,25 +7,27 @@
 " ~~~~~~~~~~~~~~~~~~~~ DEBUG ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function! s:LoadTeXTended()
-    if &ft != 'latex'
-        return
-    endif
-    unlet g:vit_did_plugin g:vit_did_ftdetect
-                \ b:current_syntax b:did_ftplugin b:vit_user_did_sexercise
-    " reload scripts
-    let start = reltime()
-    for file in ['ftdetect/latex.vim', 'ftplugin/latex.vim', 'plugin/vit.vim',
-                \ 'syntax/latex.vim', 'user/*.vim']
-        execute 'runtime '.file
-    endfor
-    echohl StatusLineTerm
-    echomsg 'Loading ViT took '
-                \ .string(reltimefloat(reltime(start)) * 1000.0)
-                \ .'ms'
-    echohl None
-endfunction
-command ViTLoadLocal :call <SID>LoadTeXTended()
+if !exists('*s:LoadViT')
+    function! s:LoadViT()
+        if &ft != 'latex'
+            return
+        endif
+        unlet g:vit_did_plugin g:vit_did_ftdetect
+                    \ b:current_syntax b:did_ftplugin
+        " reload scripts
+        let start = reltime()
+        for file in ['ftdetect/latex.vim', 'ftplugin/latex.vim', 'plugin/vit.vim',
+                    \ 'syntax/latex.vim', 'user/*.vim']
+            execute 'runtime '.file
+        endfor
+        echohl StatusLineTerm
+        echomsg 'Loading ViT took '
+                    \ .string(reltimefloat(reltime(start)) * 1000.0)
+                    \ .'ms'
+        echohl None
+    endfunction
+    command ViTLoadLocal :call <SID>LoadViT()
+endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ /DEBUG ~~~~~~~~~~~~~~~~~~~~
@@ -305,12 +307,11 @@ function vit#CompletionDetection()
     endif
     " construct new line with removed 'word'
     let [lnum, col, line] = [line('.'), col('.'), getline('.')]
-    let [wordlen, wordidx] = [strlen(item['word']), strridx(line, item['word'])]
-    let newline = strpart(line, 0, wordidx)
-                \.strpart(line, wordidx + wordlen, 999999)
-    " insert newline
+    let wordlen = strlen(item['word'])
+    let newline = strpart(line, 0, col - wordlen - 1).strpart(line, col, 999999)
     call setline(lnum, newline)
-    call setpos('.', [bufnr(), lnum, wordidx + 1])
+    " put cursor back
+    call setpos('.', [bufnr(), lnum, col - wordlen])
     " execute command given by item
     execute trim(join(match[1:], ' '))
 endfunction
