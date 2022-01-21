@@ -146,6 +146,8 @@ call vit#NewTemplate('ViTOverbrace',   s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrac
 call vit#NewTemplate('ViTUnderbrace',  s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
 call vit#NewTemplate('ViTBoxed',       s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'])
 call vit#NewTemplate('ViTFrac', '', 1, 1, [0, 6], 0, ['\frac{'],  ['}{}'])
+call vit#NewTemplate('ViTSqrt', '', 1, 1, [0, 6], 0, ['\sqrt{'],  ['}'])
+call vit#NewTemplate('ViTRoot', '', 1, 1, [0, 6], 0, ['\sqrt['],  [']{}'])
 call vit#NewTemplate('ViTSum',  '', 1, 1, [0, 6], 0, ['\sum_{'],  ['}^{}'])
 call vit#NewTemplate('ViTInt',  '', 1, 1, [0, 6], 0, ['\int_{'],  ['}^{}'])
 call vit#NewTemplate('ViTProd', '', 1, 1, [0, 7], 0, ['\prod_{'], ['}^{}'])

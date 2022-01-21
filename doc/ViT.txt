@@ -294,6 +294,7 @@ Keybind		n		y		y
 <						    *vit-math-mode*
 						    *vit-parentheses*
 						    *vit-overbrace* *vit-frac*
+						    *vit-sqrt* *vit-root*
 						    *vit-sum* *vit-lim*
 :ViTMathMode or |<ViT>|$      Start text math mode template: >
 			    $*$
@@ -309,6 +310,10 @@ Keybind		n		y		y
 			    \boxed{*}
 :ViTFrac		    Starts a fraction template: >
 			    \frac{*}{}
+:ViTSqrt		    Starts a square root template: >
+			    \sqrt{*}
+:ViTRoot		    Same as |vit-sqrt| but for an n-th root: >
+			    \sqrt[*]{}
 :ViTSum			    Starts a sum template: >
 			    \sum_{*}^{}
 :ViTInt			    Same as |vit-sum| but for an integral.
