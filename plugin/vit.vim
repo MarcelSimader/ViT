@@ -308,7 +308,7 @@ function vit#CompletionDetection()
     " construct new line with removed 'word'
     let [lnum, col, line] = [line('.'), col('.'), getline('.')]
     let wordlen = strlen(item['word'])
-    let newline = strpart(line, 0, col - wordlen - 1).strpart(line, col, 999999)
+    let newline = strpart(line, 0, col - wordlen - 1).strpart(line, col - 1, 999999)
     call setline(lnum, newline)
     " put cursor back
     call setpos('.', [bufnr(), lnum, col - wordlen])
