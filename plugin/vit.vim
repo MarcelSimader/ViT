@@ -135,7 +135,8 @@ function vit#CompileCallback(job, exit)
             if len(m_err) >= 2
                 let errmsg = trim(m_err[1])
                 " try to match line for error, we go for as long as we can here
-                while lnum < logfile_len
+                let added_statusmsg = 0
+                while (lnum + 1) < logfile_len
                     let lnum += 1
                     let l_err = matchlist(logfile[lnum], g:vit_error_line_regexp)
                     if len(l_err) >= 2
@@ -143,13 +144,17 @@ function vit#CompileCallback(job, exit)
                         " set all things related to the errors
                         call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
                         let vit_signs_dict[errline] = errmsg
-                        let statusmsgs += ['Compiled with errors (line '
-                                         \ .errline.'): '.errmsg]
                         let num_matched += 1
+                        let statusmsgs += ['Compiled with errors (line '
+                                    \      .errline.'): '.errmsg]
+                        let added_statusmsg = 1
                         " and we can stop now
                         break
                     endif
                 endwhile
+                if !added_statusmsg
+                    let statusmsgs += ['Compiled with errors: '.errmsg]
+                endif
             endif
             let lnum += 1
         endwhile
