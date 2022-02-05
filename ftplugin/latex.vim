@@ -77,6 +77,7 @@ command -buffer -bang ViTCompile call vit#Compile(expand('%:p'), expand('%:p:h')
 augroup ViTCompile
     autocmd!
     autocmd BufWritePost <buffer> :ViTCompile!
+    autocmd CursorMoved <buffer> :call vit#CompileSignHover()
 augroup END
 
 " automatic completion-insert detection, triggering

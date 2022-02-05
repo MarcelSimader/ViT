@@ -61,17 +61,16 @@ endfunction
 call s:Config('g:vit_leader', {-> '<C-@>'})
 call s:Config('g:vit_compiler', {-> 'pdflatex'})
 call s:Config('g:vit_compiler_flags', {-> ''})
-call s:Config('g:vit_max_errors', {-> 3})
-call s:Config('g:vit_error_regexp', {-> '!\s*\(.*\)'})
-call s:Config('g:vit_error_line_regexp', {-> '^l\.\d\+'})
+call s:Config('g:vit_max_errors', {-> 10})
+call s:Config('g:vit_error_regexp', {-> '^!\s*\(.*\).*$'})
+call s:Config('g:vit_error_line_regexp', {-> '^l\.\(\d\+\).*$'})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
 call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 call s:Config('g:vit_commands',
             \ {-> readfile(findfile('latex_commands.txt', &runtimepath))}, [])
 call s:Config('g:vit_autosurround_chars', {-> [
-            \ ['(', ')'], ['[', ']'], ['{', '}'],
-            \ ['$', '$']
+            \ ['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']
             \ ]})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -109,8 +108,12 @@ if g:vit_max_errors > 0
     call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 endif
 function vit#CompileCallback(job, exit)
+    let buf = bufname()
     " remove old signs
-    if g:vit_max_errors > 0 | call sign_unplace('ViT') | endif
+    if g:vit_max_errors > 0
+        call setbufvar(buf, 'vit_signs', {})
+        call sign_unplace('ViT')
+    endif
     " success
     if a:exit == 0
         echohl MoreMsg | echo 'Compiled succesfully! Yay!' | echohl None
@@ -118,25 +121,71 @@ function vit#CompileCallback(job, exit)
     endif
     " get log file of current file, if possible
     try
-        let logfile = readfile(expand('%:r').'.log')
-        " get line matches
-        let errorlines = vimse#AllMatchStr(
-                    \ logfile, g:vit_error_line_regexp, g:vit_max_errors)
-        " create signs
-        for errorline in errorlines
-            let errorline = str2nr(trim(errorline[2:]))
-            call sign_place(
-                        \ 0, 'ViT', 'ViTError',
-                        \ bufname(), #{lnum: errorline})
-        endfor
-        " get first error message
-        let err = trim(get(matchlist(logfile, g:vit_error_regexp), 1, ''))
-        let errormsg = empty(err) ? (', but no error line found.') : (': '.err)
+        let statusmsgs = []
+        " read signs dict
+        let vit_signs_dict = getbufvar(buf, 'vit_signs', {})
+        " loop over lines in logfile
+        let [logfile, lnum, num_matched] = [readfile(expand('%:r').'.log'), 0, 0]
+        let logfile_len = len(logfile)
+        while lnum < logfile_len && num_matched < g:vit_max_errors
+            " try to match message for error
+            let m_err = matchlist(logfile[lnum], g:vit_error_regexp)
+            if len(m_err) >= 2
+                let errmsg = trim(m_err[1])
+                " try to match line for error, we go for as long as we can here
+                while lnum < logfile_len
+                    let lnum += 1
+                    let l_err = matchlist(logfile[lnum], g:vit_error_line_regexp)
+                    if len(l_err) >= 2
+                        let errline = str2nr(trim(l_err[1]))
+                        " set all things related to the errors
+                        call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
+                        let vit_signs_dict[errline] = errmsg
+                        let statusmsgs += ['Compiled with errors (line '
+                                         \ .errline.'): '.errmsg]
+                        let num_matched += 1
+                        " and we can stop now
+                        break
+                    endif
+                endwhile
+            endif
+            let lnum += 1
+        endwhile
+        " write back signs dict
+        call setbufvar(buf, 'vit_signs', vit_signs_dict)
+
+        echohl ErrorMsg
+        if !empty(statusmsgs)
+            echomsg statusmsgs[0]
+        else
+            if g:vit_max_errors == 0
+                echomsg 'Compiled wtih errors.'
+            else
+                echomsg 'Compiled with errors, but no error messages found in .log file.'
+            endif
+        endif
+        echohl None
     catch /.*E484.*/
-        let errormsg = ', but no ".log" file found for this buffer.'
+        echohl ErrorMsg
+        echomsg 'Compiled with errors, but found no .log file for this buffer.'
+        echohl None
     endtry
-    " output error message
-    echohl ErrorMsg | echomsg 'Compiled with errors, yikes'.errormsg | echohl None
+endfunction
+
+function vit#CompileSignHover()
+    let buf = bufname()
+    " let timer = getbufvar(buf, 'vit_signs_timer', -1)
+    " stop old timer
+    " if timer != -1 | call timer_stop(timer) | endif
+    " set new timer
+    let vit_sign_msg = get(getbufvar(buf, 'vit_signs', {}), line('.'), '')
+    if !empty(vit_sign_msg)
+        echohl ErrorMsg | redraw | echo vit_sign_msg | echohl None
+    endif
+    " let timer = timer_start(
+    "             \ 400,
+    "             \ {-> execute('echohl ErrorMsg | echo "'.vit_sign_msg.'" | echohl None', '')})
+    " call setbufvar(buf, 'vit_signs_timer', timer)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
