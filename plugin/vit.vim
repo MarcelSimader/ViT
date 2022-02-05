@@ -62,7 +62,7 @@ call s:Config('g:vit_leader', {-> '<C-@>'})
 call s:Config('g:vit_compiler', {-> 'pdflatex'})
 call s:Config('g:vit_compiler_flags', {-> ''})
 call s:Config('g:vit_max_errors', {-> 3})
-call s:Config('g:vit_error_regexp', {-> '! .*'})
+call s:Config('g:vit_error_regexp', {-> '!\s*\(.*\)'})
 call s:Config('g:vit_error_line_regexp', {-> '^l\.\d\+'})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
@@ -113,15 +113,9 @@ function vit#CompileCallback(job, exit)
     if g:vit_max_errors > 0 | call sign_unplace('ViT') | endif
     " success
     if a:exit == 0
-        echohl MoreMsg | echo 'Compiled Succesfully! Yay!' | echohl None
+        echohl MoreMsg | echo 'Compiled succesfully! Yay!' | echohl None
         return
     endif
-    " failure without error
-    if g:vit_max_errors <= 0
-        echohl ErrorMsg | echomsg 'Compiled With Errors! Yikes!' | echohl None
-        return
-    endif
-    " failure with errors
     " get log file of current file, if possible
     try
         let logfile = readfile(expand('%:r').'.log')
@@ -136,10 +130,13 @@ function vit#CompileCallback(job, exit)
                         \ bufname(), #{lnum: errorline})
         endfor
         " get first error message
-        let errormsg = ': '.matchstr(logfile, g:vit_error_regexp)
+        let err = trim(get(matchlist(logfile, g:vit_error_regexp), 1, ''))
+        let errormsg = empty(err) ? (', but no error line found.') : (': '.err)
     catch /.*E484.*/
         let errormsg = ', but no ".log" file found for this buffer.'
     endtry
+    " output error message
+    echohl ErrorMsg | echomsg 'Compiled with errors, yikes'.errormsg | echohl None
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
