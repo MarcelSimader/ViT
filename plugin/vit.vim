@@ -64,6 +64,8 @@ call s:Config('g:vit_compiler_flags', {-> ''})
 call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_error_regexp', {-> '^!\s*\(.*\).*$'})
 call s:Config('g:vit_error_line_regexp', {-> '^l\.\(\d\+\).*$'})
+" TODO: document this
+call s:Config('g:vit_identifier_regexp', {-> '[_\-\*\\A-Za-z0-9]'})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
 call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
@@ -173,19 +175,10 @@ function vit#CompileCallback(job, exit)
 endfunction
 
 function vit#CompileSignHover()
-    let buf = bufname()
-    " let timer = getbufvar(buf, 'vit_signs_timer', -1)
-    " stop old timer
-    " if timer != -1 | call timer_stop(timer) | endif
-    " set new timer
-    let vit_sign_msg = get(getbufvar(buf, 'vit_signs', {}), line('.'), '')
+    let vit_sign_msg = get(getbufvar(bufname(), 'vit_signs', {}), line('.'), '')
     if !empty(vit_sign_msg)
         echohl ErrorMsg | redraw | echo vit_sign_msg | echohl None
     endif
-    " let timer = timer_start(
-    "             \ 400,
-    "             \ {-> execute('echohl ErrorMsg | echo "'.vit_sign_msg.'" | echohl None', '')})
-    " call setbufvar(buf, 'vit_signs_timer', timer)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -280,27 +273,29 @@ function vit#NewTemplate(name, keybind, inlinemode, completionitem,
     endif
     " ~~~~~~~~~~ default completion option
     if a:completionitem && len(a:textbefore) > 0
-        call vit#NewCompletionOption(a:textbefore[0], a:name)
+        call vit#NewCompletionOption(a:textbefore[0], a:name.' i')
     endif
 endfunction
 
 " Legacy API.
-function ViTNewCompletionOption(name, command, mode = 'i')
-    return vit#NewCompletionOption(a:name, a:command, a:mode)
+function ViTNewCompletionOption(name, command, ...)
+    return vit#NewCompletionOption(a:name, a:command)
 endfunction
 
 " Adds a template command to the insert mode completion menu.
 " Arguments:
 "   name, the name of the command in the completion menu
 "   command, the name of the command to execute upon insertion
-function vit#NewCompletionOption(name, command, mode = 'i')
+function vit#NewCompletionOption(name, command, ...)
     " remove options with same name from list
     let idx = index(g:vit_commands, a:name)
     if idx != -1 | call remove(g:vit_commands, idx) | endif
     " add new item to list
-    let g:vit_commands += [{
-                \ 'word': a:name,
-                \ 'user_data': 'se_latex_'.a:command.'_'.a:mode}]
+    if empty(a:command)
+        let g:vit_commands += [a:name]
+    else
+        let g:vit_commands += [{'word': a:name, 'user_data': 'se_latex_'.a:command}]
+    endif
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -346,7 +341,7 @@ function vit#CompletionDetection()
         return
     endif
     " split into [WHOLE_MATCH, Command, mode, ...] or []
-    let match = matchlist(item['user_data'], 'se_latex_\([A-Za-z0-9\-]*\)_\([i]\?\)')
+    let match = matchlist(item['user_data'], 'se_latex_\([\-\*\\A-Za-z0-9 \t]*\)')
     " return if we did not find at least [WHOLE_MATCH, Command]
     if empty(get(match, 0, '')) || empty(get(match, 1, ''))
         return
@@ -359,7 +354,7 @@ function vit#CompletionDetection()
     " put cursor back
     call setpos('.', [bufnr(), lnum, col - wordlen])
     " execute command given by item
-    execute trim(join(match[1:], ' '))
+    execute match[1]
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -391,8 +386,8 @@ endfunction
 function vit#CurrentTeXEnv()
     let flags = 'bcnWz'
     " search for \begin{...} \end{...}
-    let [lnum, col] = searchpairpos('\\begin{[-*_A-Za-z0-9]\+}', '',
-                                  \   '\\end{[-*_A-Za-z0-9]\+}', flags)
+    let [lnum, col] = searchpairpos('\\begin{'.g:vit_identifier_regexp.'\+}', '',
+                                  \   '\\end{'.g:vit_identifier_regexp.'\+}', flags)
     " now we get 'envname}...'
     let envname = getline(lnum)[col + 6:]
     " now we get 'envname'
