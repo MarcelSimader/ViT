@@ -326,17 +326,24 @@ function vit#SmartMoveCursorRight(chars = g:vit_jump_chars)
     " do actual smart movey things
     let cols = []
     for char in a:chars
-        let cols += [stridx(line, char, col - 1) + 2]
+        let newidx = stridx(line, char, col - 1) + 2
+        " only add after cursor
+        if newidx > col
+            let cols += [newidx]
+        endif
+        " break loop if we found a min already
+        if newidx == col + 1
+            break
+        endif
     endfor
-    call filter(cols, 'v:val > col')
     call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
 endfunction
 
 function vit#CurrentTeXEnv()
     let flags = 'bcnWz'
-    " search for \begin{\w+} \end{\w+}
-    let [lnum, col] = searchpairpos('\\begin{[A-Za-z0-9*_-]\+}', '',
-                                  \ '\\end{[A-Za-z0-9*_-]\+}', flags)
+    " search for \begin{...} \end{...}
+    let [lnum, col] = searchpairpos('\\begin{[-*_A-Za-z0-9]\+}', '',
+                                  \   '\\end{[-*_A-Za-z0-9]\+}', flags)
     " now we get 'envname}...'
     let envname = getline(lnum)[col + 6:]
     " now we get 'envname'
