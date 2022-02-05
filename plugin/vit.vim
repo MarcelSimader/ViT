@@ -12,8 +12,10 @@ if !exists('*s:LoadViT')
         if &ft != 'latex'
             return
         endif
+        let buf = bufname()
         unlet g:vit_did_plugin g:vit_did_ftdetect
-                    \ b:current_syntax b:did_ftplugin
+        call setbufvar(buf, 'current_syntax', '')
+        call setbufvar(buf, 'did_ftplugin', '')
         " reload scripts
         let start = reltime()
         for file in ['ftdetect/latex.vim', 'ftplugin/latex.vim', 'plugin/vit.vim',
@@ -158,7 +160,6 @@ function vit#CompileCallback(job, exit)
             endif
             let lnum += 1
         endwhile
-        " write back signs dict
         call setbufvar(buf, 'vit_signs', vit_signs_dict)
 
         echohl ErrorMsg
@@ -292,15 +293,18 @@ endfunction
 "   name, the name of the command in the completion menu
 "   command, the name of the command to execute upon insertion
 function vit#NewCompletionOption(name, command, ...)
+    let buf = bufname()
     " remove options with same name from list
-    let idx = index(g:vit_commands, a:name)
-    if idx != -1 | call remove(g:vit_commands, idx) | endif
+    let vit_commands = getbufvar(buf, 'vit_commands', copy(g:vit_commands))
+    let idx = index(vit_commands, a:name)
+    if idx != -1 | call remove(vit_commands, idx) | endif
     " add new item to list
     if empty(a:command)
-        let g:vit_commands += [a:name]
+        let vit_commands += [a:name]
     else
-        let g:vit_commands += [{'word': a:name, 'user_data': 'se_latex_'.a:command}]
+        let vit_commands += [{'word': a:name, 'user_data': 'se_latex_'.a:command}]
     endif
+    call setbufvar(buf, 'vit_commands', vit_commands)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -319,7 +323,7 @@ function vit#CompleteFunc(findstart, base)
     " actually compute matches for 'a:base'
     " always include a:base in matches
     let matches = [a:base]
-    for command in g:vit_commands
+    for command in getbufvar(bufname(), 'vit_commands', g:vit_commands)
         " we could have a string or a dict here
         if type(command) == v:t_string
             let commandtext = command
@@ -398,5 +402,20 @@ function vit#CurrentTeXEnv()
     " now we get 'envname'
     let envname = envname[:stridx(envname, '}') - 1]
     return envname
+endfunction
+
+function vit#ScanNewCommands()
+    for lnum in range(0, line('$'))
+        let line = getline(lnum)
+        if empty(line) | continue | endif
+        let match = matchlist(line,
+                    \ '\\newcommand{\('.g:vit_identifier_regexp.'\+\)}'
+                    \.'\(\[\([0-9]\+\)\]\)\?')
+        if len(match) >= 2
+            let [name, numargs] = [match[1], str2nr(get(match, 3, '0'))]
+            if numargs >= 1 | let name .= '{' | endif
+            call vit#NewCompletionOption(name, '')
+        endif
+    endfor
 endfunction
 

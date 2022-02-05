@@ -84,6 +84,7 @@ augroup END
 " the command execution
 augroup ViTCompletionDetection
     autocmd!
+    autocmd BufWritePost <buffer> :call vit#ScanNewCommands()
     autocmd CompleteDone <buffer> :call vit#CompletionDetection()
 augroup END
 
