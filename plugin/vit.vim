@@ -61,21 +61,25 @@ function s:Config(name, value, default = v:none)
 endfunction
 
 call s:Config('g:vit_leader', {-> '<C-@>'})
+call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
+
 call s:Config('g:vit_compiler', {-> 'pdflatex'})
 call s:Config('g:vit_compiler_flags', {-> ''})
+
 call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_error_regexp', {-> '^!\s*\(.*\).*$'})
 call s:Config('g:vit_error_line_regexp', {-> '^l\.\(\d\+\).*$'})
-" TODO: document this
-call s:Config('g:vit_identifier_regexp', {-> '[_\-\*\\A-Za-z0-9]'})
-call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
+
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
-call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
-call s:Config('g:vit_commands',
-            \ {-> readfile(findfile('latex_commands.txt', &runtimepath))}, [])
-call s:Config('g:vit_autosurround_chars', {-> [
-            \ ['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']
-            \ ]})
+call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
+call s:Config('g:vit_autosurround_chars', {->
+            \ [['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']]})
+call s:Config('g:vit_static_commands', {->
+            \ #{latex: readfile(findfile('latex_commands.txt', &runtimepath))}}, {})
+call s:Config('g:vit_commands', {-> copy(g:vit_static_commands)}, {})
+call s:Config('g:vit_includes', {-> ['latex']})
+" TODO: maybe document this
+call s:Config('g:vit_scan_prg', {-> findfile('bin/scan_latex_sources', &runtimepath)})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
@@ -95,10 +99,12 @@ function vit#Compile(filepath, pwd, silent = '', flags = '')
     " run compilation
     if a:silent == '!'
         " run background job
-        let s:se_latex_currjob = job_start(
+        let s:vit_compile_currjob = job_start(
             \ g:vit_compiler.' --interaction=nonstopmode'
             \     .g:vit_compiler_flags.' '.a:flags.' "'.a:filepath.'"',
-            \ {'exit_cb': 'vit#CompileCallback', 'cwd': a:pwd})
+            \ #{exit_cb: {job, exit ->
+                    \ vit#CompileCallback(job, exit, #{buf: a:filepath, cwd: a:pwd})},
+                \ cwd: a:pwd})
     else
         " open terminal
         :vertical :belowright call term_start(
@@ -111,8 +117,12 @@ endfunction
 if g:vit_max_errors > 0
     call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 endif
-function vit#CompileCallback(job, exit)
+function vit#CompileCallback(job, exit, scan = 0)
     let buf = bufname()
+    " call scanning
+    if type(a:scan) == v:t_dict
+        call vit#ScanFromLog(a:scan['buf'], a:scan['cwd'])
+    endif
     " remove old signs
     if g:vit_max_errors > 0
         call setbufvar(buf, 'vit_signs', {})
@@ -160,7 +170,6 @@ function vit#CompileCallback(job, exit)
             endif
             let lnum += 1
         endwhile
-        call setbufvar(buf, 'vit_signs', vit_signs_dict)
 
         echohl ErrorMsg
         if !empty(statusmsgs)
@@ -197,18 +206,11 @@ highlight ViTErrorSign ctermfg=Red ctermbg=DarkRed
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATING FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-" Legacy API.
-function ViTNewTemplate(name, keybind, inlinemode, completionitem,
-            \ finalcursoroffset, middleindent, textbefore, textafter,
-            \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
-    return vit#NewTemplate(a:name, a:keybind, a:inlinemode, a:completionitem,
-                \ a:finalcursoroffset, a:middleindent, a:textbefore, a:textafter,
-                \ a:numargs, a:argname, a:argdefault, a:argcomplete)
-endfunction
-
 " Sets up a new ViT template.
 " Arguments:
 "   name, the name of the command to be defined
+"   class, determines which local class this command template is a part of, acts globally
+"       if the set class is 'latex'
 "   keybind, the keybind to access this command, or '' for no keybind
 "   inlinemode, '0' for no inline mode, '1' for inline mode
 "   completionitem, whether to make this tempalte an auto-completion
@@ -221,30 +223,32 @@ endfunction
 "       surround mode
 "   textbefore, an array of lines for the before-text
 "   textafter, an array of lines for the after-text
-"   numargs, the number of template parameters '#1, #2, ...' in the
+"   [numargs,] the number of template parameters '#1, #2, ...' in the
 "       'text(before|after)' arguments
-"   ..., the rest parameter contains the names of the template
+"   [...,] the rest parameter contains the names of the template
 "        parameters, see 'ViTPromptTemplateCompletion'
-function vit#NewTemplate(name, keybind, inlinemode, completionitem,
+function vit#NewTemplate(name, class, keybind, inlinemode, completionitem,
             \ finalcursoroffset, middleindent, textbefore, textafter,
             \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
     let id = rand(srand())
     " ~~~~~~~~~~ command function
-    function! s:ViTNewCommandSub_{id}_{a:name}(lstart, lend, mode = 'i') closure
-        let endcol = col('.')
+    function! ViTNewCommandSub_{id}_{a:name}(mode = 'i', col = 0) range closure
         let [textbefore, textafter] = [a:textbefore, a:textafter]
+        let [lstart, lend] = [a:firstline, a:lastline]
+        " possibly flip start and end
+        if lstart > lend | let [lstart, lend] = [lend, lstart] | endif
         " setting cursor and line based on mode
         if a:mode == '' || (a:mode == 'i' && a:inlinemode == 1)
             " inline insert mode
-            let [cstart, cend] = [col("."), col(".")]
+            let [cstart, cend] = [a:col, a:col]
         elseif a:mode == 'i' || a:mode == 'V'
             " line insert mode
-            let [cstart, cend] = [0, 999999]
             let [textbefore, textafter] = [textbefore + [''], [''] + textafter]
+            let [cstart, cend] = [0, 999999]
         elseif a:mode == 'v'
             " character insert mode
             let [cstart, cend] = [col("'<"), col("'>") + 1]
-            " possibly flip start and end cols
+            " possibly flip start and end
             if cstart > cend | let [cstart, cend] = [cend, cstart] | endif
         else
             throw 'Unknown mode "'.a:mode.'".'
@@ -253,11 +257,11 @@ function vit#NewTemplate(name, keybind, inlinemode, completionitem,
         let undostate = undotree()['seq_cur']
         " insert
         call vimse#SmartSurround(
-                            \ a:lstart, a:lend, cstart, cend,
+                            \ lstart, lend, cstart, cend,
                             \ textbefore, textafter, a:middleindent)
         " handle templating
-        let result = vimse#TemplateString(a:lstart,
-                    \ a:lend + len(textbefore) + len(textafter),
+        let result = vimse#TemplateString(lstart,
+                    \ lend + len(textbefore) + len(textafter),
                     \ 0, 999999, a:numargs, a:argname, a:argdefault, a:argcomplete)
         " undo and return if result was false
         if !result && g:vit_template_remove_on_abort
@@ -266,52 +270,88 @@ function vit#NewTemplate(name, keybind, inlinemode, completionitem,
             silent execute 'undo '.undostate | silent undo | return
         endif
         " else set cursor pos in new text
-        call cursor(a:lstart + get(a:finalcursoroffset, 0, 0),
-                    \ endcol + get(a:finalcursoroffset, 1, 0))
+        call cursor(lstart + get(a:finalcursoroffset, 0, 0),
+                    \ a:col + get(a:finalcursoroffset, 1, 0))
     endfunction
-    " ~~~~~~~~~~ command
-    execute 'command! -buffer -range -nargs=? '.a:name
-                \ .' :call <SID>ViTNewCommandSub_'.id.'_'.a:name.'(<line1>, <line2>, "<args>")'
-    " ~~~~~~~~~~ keymap
-    if a:keybind != ''
-        execute 'inoremap <buffer> '.a:keybind.' <C-O>:'.a:name.' i<CR>'
-        execute 'xnoremap <buffer> <expr> '.a:keybind.' ":'.a:name.' ".mode()."<CR>"'
+
+    let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
+    " ~~~~~~~~~~ keymaps
+    if !empty(trim(a:keybind))
+        execute 'inoremap <buffer> '.a:keybind.' <C-O>:call '
+                    \ .funcname.'("i", col("."))<CR>'
+        execute 'xnoremap <buffer> '.a:keybind.' :call '
+                    \ .funcname.'(visualmode(), col("."))'
     endif
-    " ~~~~~~~~~~ default completion option
+    " ~~~~~~~~~~ completion
     if a:completionitem && len(a:textbefore) > 0
-        call vit#NewCompletionOption(a:textbefore[0], a:name.' i')
+        call vit#NewCompletionOption(
+                    \ a:textbefore[0],
+                    \ a:class,
+                    \ 'call '.funcname.'("i", col("."))')
     endif
-endfunction
-
-" Legacy API.
-function ViTNewCompletionOption(name, command, ...)
-    return vit#NewCompletionOption(a:name, a:command)
-endfunction
-
-" Adds a template command to the insert mode completion menu.
-" Arguments:
-"   name, the name of the command in the completion menu
-"   command, the name of the command to execute upon insertion
-function vit#NewCompletionOption(name, command, ...)
-    let buf = bufname()
-    " remove options with same name from list
-    let vit_commands = getbufvar(buf, 'vit_commands', copy(g:vit_commands))
-    let idx = index(vit_commands, a:name)
-    if idx != -1 | call remove(vit_commands, idx) | endif
-    " add new item to list
-    if empty(a:command)
-        let vit_commands += [a:name]
-    else
-        let vit_commands += [{'word': a:name, 'user_data': 'se_latex_'.a:command}]
-    endif
-    call setbufvar(buf, 'vit_commands', vit_commands)
+    return funcref(funcname)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPLETION ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-" Omnifunc, see :h complete-functions for more details
+" Adds completion option 'name' to 'class' globally.
+" Arguments:
+"     - name, the name of the completion option item
+"     - class, the class this completion option item belongs to
+"     - [command,] the command to execute when using this completion option item,
+"           defaults to '' which means the contents of 'name' will be inserted in
+"           place of executing a command
+"     - [static,] determindes whether to add to the static commands or not
+function vit#NewCompletionOption(name, class, command = '', static = 0)
+    " create new completion option item
+    let item = empty(a:command)
+                \ ? a:name
+                \ : #{word: a:name, user_data: 'vit_'.a:command}
+    " check if key exists in commands
+    let normed = s:NormClass(a:class)
+    let vit_commands = a:static ? g:vit_static_commands : g:vit_commands
+    if has_key(vit_commands, normed)
+        let vit_commands[normed] += [item]
+    else
+        let vit_commands[normed] = [item]
+    endif
+endfunction
+
+" Removes the completion option items from a global class.
+function vit#ResetCompletionOptionClass(class)
+    let normed = s:NormClass(a:class)
+    let g:vit_commands[normed] = copy(get(g:vit_static_commands, normed, []))
+endfunction
+
+" Marks 'class' as included in buffer 'buf'.
+function vit#Include(buf, class)
+    let vit_includes = s:GetVar(a:buf, 'vit_includes')
+    let normed = s:NormClass(a:class)
+    if index(vit_includes, normed) == -1
+        let vit_includes += [normed]
+    endif
+endfunction
+
+" Resets the included classes in buffer 'buf' to the default global value.
+function vit#ResetInclude(buf)
+    call s:ResetVar(a:buf, 'vit_includes')
+endfunction
+
+function vit#GetCompletionOptions(buf)
+    let vit_includes = s:GetVar(a:buf, 'vit_includes')
+    return flattennew(values(
+                \ filter(g:vit_commands, 'index(vit_includes, v:key) != -1'),
+            \ ))
+endfunction
+
+" Normalizes a path to a class string.
+function s:NormClass(class)
+    return split(a:class, '\.')[0]
+endfunction
+
+" see :h complete-functions for more details
 function vit#CompleteFunc(findstart, base)
     " get last 'word' under cursor
     if a:findstart
@@ -320,23 +360,10 @@ function vit#CompleteFunc(findstart, base)
                   \ strridx(searchspace, ' ') + 1,
                   \ strridx(searchspace, '\')])
     endif
-    " actually compute matches for 'a:base'
-    " always include a:base in matches
     let matches = [a:base]
-    for command in getbufvar(bufname(), 'vit_commands', g:vit_commands)
-        " we could have a string or a dict here
-        if type(command) == v:t_string
-            let commandtext = command
-        elseif type(command) == v:t_dict
-            let commandtext = command['word']
-        else
-            throw 'Unknown completion item type "'.type(command).'".'
-        endif
-        " add only if a:base is in commandtext
-        if stridx(commandtext, a:base) != -1
-            let matches += [command]
-        endif
-    endfor
+    let matches += matchfuzzy(
+                \ vit#GetCompletionOptions(bufname()),
+                \ a:base, #{key: 'word'})
     return matches
 endfunction
 
@@ -350,7 +377,8 @@ function vit#CompletionDetection()
         return
     endif
     " split into [WHOLE_MATCH, Command, mode, ...] or []
-    let match = matchlist(item['user_data'], 'se_latex_\([\-\*\\A-Za-z0-9 \t]*\)')
+    let match = matchlist(item['user_data'], 'vit_\(.*\)')
+    echomsg match
     " return if we did not find at least [WHOLE_MATCH, Command]
     if empty(get(match, 0, '')) || empty(get(match, 1, ''))
         return
@@ -366,9 +394,75 @@ function vit#CompletionDetection()
     execute match[1]
 endfunction
 
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ SCANNING ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Scans the current buffer for changes in definitions. This operations will not delete
+" any information and only consider additions.
+function vit#ScanFromBuffer(buf, cwd)
+    let g:vit_scan_currjob = job_start(g:vit_scan_prg.' --stdin',
+                \ {'out_cb': {_, msg ->
+                        \ vit#ScanFileCallback(a:buf, msg, 1, bufname(a:buf))},
+                \  'in_io': 'buffer', 'in_buf': bufnr(a:buf),
+                \  'cwd': a:cwd})
+endfunction
+
+" Scans the file with the given 'texname' by looking through the log, if such a log
+" exists. This operation will re-scan all includes of buffer 'buf' and rebuild affected
+" files in the global class cache.
+function vit#ScanFromLog(buf, cwd)
+    call vit#ResetInclude(a:buf)
+    let g:vit_scan_currjob = job_start(g:vit_scan_prg.' --log '.bufname(a:buf),
+                \ {'out_cb': {_, msg ->
+                        \ vit#ScanFileCallback(a:buf, msg, 0)},
+                \  'cwd': a:cwd})
+endfunction
+
+" Callback for executions of the 'util/scan.py' utility.
+function vit#ScanFileCallback(buf, msg, noremove, stdinname = '') abort
+    let [type, class; rest] = split(a:msg, ' ')
+    if class == '<stdin>' | let class = a:stdinname | endif
+    if type == 'include'
+        " we don't wanna reset completion options classes if we are reading
+        " from a single buffer and/or noremove is set
+        if !a:noremove
+            call vit#ResetCompletionOptionClass(class)
+        endif
+        " mark this file as included
+        call vit#Include(a:buf, class)
+    elseif type == 'command'
+        let [cmdname, numargs; _] = rest
+        call vit#NewCompletionOption((numargs > 0) ? cmdname.'{' : cmdname, class)
+    elseif type == 'environ'
+        let [cmdname, numargs; _] = rest
+        call vit#NewTemplate(substitute('ViT'.cmdname, '\*\|#', '_ill', 'g'), class,
+                    \ '', 0, 1, [1, 5], 4,
+                    \ ['\begin{'.cmdname.'}'], ['\end{'.cmdname.'}'])
+    else
+        echohl ErrorMsg
+        echomsg 'Unknown ScanFiles tuple type "'.type.'"'
+        echohl None
+    endif
+endfunction
+
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Resets variable 'name' to the global value 'g:name' in buffer 'buf'.
+function s:ResetVar(buf, name)
+    call setbufvar(a:buf, a:name, copy(g:{a:name}))
+endfunction
+
+" Retrieves the variable 'name' in buffer 'buf', or from the global variable 'g:name' if
+" 'global' is set to a truthy value.
+function s:GetVar(buf, name, global = 0)
+    " reset if not found already
+    if !exists('b:'.a:name) | call s:ResetVar(a:buf, a:name) | endif
+    " return value
+    return a:global ? g:{a:name} : getbufvar(a:buf, a:name)
+endfunction
 
 " Moves cursor to the right to simulate the <Tab> behavior in other IDEs.
 " Arguments:
@@ -392,30 +486,14 @@ function vit#SmartMoveCursorRight(chars = g:vit_jump_chars)
     call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
 endfunction
 
+" Returns the name of the LaTeX environment the cursor is currently positioned in.
 function vit#CurrentTeXEnv()
     let flags = 'bcnWz'
     " search for \begin{...} \end{...}
-    let [lnum, col] = searchpairpos('\\begin{'.g:vit_identifier_regexp.'\+}', '',
-                                  \   '\\end{'.g:vit_identifier_regexp.'\+}', flags)
-    " now we get 'envname}...'
-    let envname = getline(lnum)[col + 6:]
-    " now we get 'envname'
-    let envname = envname[:stridx(envname, '}') - 1]
+    let [lnum, col] = searchpairpos('\\begin{\_[^@\}#]\+}', '',
+                                  \   '\\end{\_[^@\}#]\+}', flags)
+    " now we get '\begin{envname}'
+    let envname = get(matchlist(getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1), 1, '')
     return envname
-endfunction
-
-function vit#ScanNewCommands()
-    for lnum in range(0, line('$'))
-        let line = getline(lnum)
-        if empty(line) | continue | endif
-        let match = matchlist(line,
-                    \ '\\newcommand{\('.g:vit_identifier_regexp.'\+\)}'
-                    \.'\(\[\([0-9]\+\)\]\)\?')
-        if len(match) >= 2
-            let [name, numargs] = [match[1], str2nr(get(match, 3, '0'))]
-            if numargs >= 1 | let name .= '{' | endif
-            call vit#NewCompletionOption(name, '')
-        endif
-    endfor
 endfunction
 

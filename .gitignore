@@ -1,6 +1,9 @@
 # ignore test files
 test*
 
+# ignore transpiling steps
+*.c
+
 # ignore all custom 'user' scripts
 user/
 

@@ -1,6 +1,4 @@
 \author{
-\course{
-\semester{
 \begin{
 \end{
 \columnbreak
@@ -8,6 +6,11 @@
 \newpage
 \documentclass{
 \newcommand{
+\newcommand*{
+\renewcommand{
+\newenvironment{
+\newenvironment*{
+\renewenvironment{
 \usepackage{
 \DeclareMathOperator{
 \setlength{
@@ -21,9 +24,14 @@
 \vfill
 \hfill
 \item
-\paragraph
-\problem
-\setproblem
+\ref{
+\url{
+
+\section{
+\subsection{
+\subsubsection{
+\paragraph{
+\subparagraph{
 
 \alpha
 \beta
@@ -105,7 +113,6 @@
 
 \binom{
 \gcd{
-\ggT{
 \deg{
 \frac{
 \inf_{
@@ -113,7 +120,7 @@
 \limits_{
 \prod_{
 \sqrt[
-\sqrt[2]{
+\sqrt{
 \sum_{
 \sup_{
 
@@ -135,10 +142,10 @@
 \ldots
 \mathbb{
 \mathbb{N}
-\mathbb{N}_0
 \mathbb{Z}
-\mathbb{Q}
 \mathbb{R}
+\mathbb{Q}
+\mathbb{N}_0
 \mathcal{
 \overbrace^{
 \qedhere

@@ -15,6 +15,8 @@ runtime ftplugin/tex.vim
 let s:save_cpo = &cpo
 set cpo&vim
 
+let s:buf = bufname()
+
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ OPTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,7 +35,7 @@ setlocal completefunc=vit#CompleteFunc
 " set conceal level
 setlocal conceallevel=0
 " completion options
-setlocal completeopt=menuone,noselect
+setlocal completeopt=menuone,noinsert,noselect
 " we have to disable indentline here as this
 " would just break conceallevel
 let b:indentLine_enabled = 0
@@ -84,7 +86,7 @@ augroup END
 " the command execution
 augroup ViTCompletionDetection
     autocmd!
-    autocmd BufWritePost <buffer> :call vit#ScanNewCommands()
+    autocmd InsertCharPre <buffer> :if pumvisible() | call feedkeys("\<C-X>\<C-U>") | endif
     autocmd CompleteDone <buffer> :call vit#CompletionDetection()
 augroup END
 
@@ -116,48 +118,57 @@ let s:_ = g:vit_leader
 
 " ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
 
-" ~~~~~~~~~~ text mode
-call vit#NewTemplate('ViTProblem',   s:_.'p', 1, 0, [4], 0, [g:vit_comment_line, g:vit_comment_line, g:vit_comment_line, '\problem', ''],                    [])
-call vit#NewTemplate('ViTProblemnr', s:_.'P', 1, 0, [5], 0, [g:vit_comment_line, g:vit_comment_line, g:vit_comment_line, '\setproblem{#1}', '\problem', ''], [], 1, ['Number: '])
+" ~~~~~~~~~~ text
+call vit#NewTemplate('ViTEnv',          'latex', '<C-E>', 0, 1, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'], 1, ['Name: '])
+call vit#NewTemplate('ViTEnum',         'latex', s:_.'e', 0, 1, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'])
+call vit#NewTemplate('ViTEnumLeft',     'latex', s:_.'E', 0, 1, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
+call vit#NewTemplate('ViTAlphEnum',     'latex', s:_.'l', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'])
+call vit#NewTemplate('ViTAlphEnumLeft', 'latex', s:_.'L', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'])
+call vit#NewTemplate('ViTCenter',       'latex', s:_.'c', 0, 1, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
+call vit#NewTemplate('ViTTabular',      'latex', s:_.'t', 0, 1, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
 
-" ~~~~~~~~~~ text envs
-call vit#NewTemplate('ViTEnv',          '<C-E>', 0, 1, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'], 1, ['Name: '])
-call vit#NewTemplate('ViTEnum',         s:_.'e', 0, 1, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'])
-call vit#NewTemplate('ViTEnumLeft',     s:_.'E', 0, 1, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
-call vit#NewTemplate('ViTAlphEnum',     s:_.'l', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'])
-call vit#NewTemplate('ViTAlphEnumLeft', s:_.'L', 0, 1, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'])
-call vit#NewTemplate('ViTCenter',       s:_.'c', 0, 1, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
-call vit#NewTemplate('ViTTabular',      s:_.'t', 0, 1, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTSection',       'latex', s:_.'s',   0, 1, [3], 0, ['\section{#1}',       '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
+call vit#NewTemplate('ViTSubSection',    'latex', s:_.'ss',  0, 1, [3], 0, ['\subsection{#1}',    '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
+call vit#NewTemplate('ViTSubSubSection', 'latex', s:_.'sss', 0, 1, [3], 0, ['\subsubsection{#1}', '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
+call vit#NewTemplate('ViTParagraph',     'latex', s:_.'p',   0, 1, [3], 0, ['\paragraph{#1}',     '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
+call vit#NewTemplate('ViTSubParagraph',  'latex', s:_.'pp',  0, 1, [3], 0, ['\subparagraph{#1}',  '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
 
-" ~~~~~~~~~~ math envs
-call vit#NewTemplate('ViTEquation', s:_.'q', 0, 1, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'])
-call vit#NewTemplate('ViTGather',   s:_.'g', 0, 1, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'])
-call vit#NewTemplate('ViTAlign',    s:_.'a', 0, 1, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'])
-call vit#NewTemplate('ViTAlignAt',  s:_.'A', 0, 1, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'], 1, ['Columns: '])
-call vit#NewTemplate('ViTProof',    s:_.'r', 0, 1, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'])
-call vit#NewTemplate('ViTMatrix',   s:_.'m', 0, 1, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'], 1, ['Columns: '])
+" ~~~~~~~~~~ math
+call vit#NewTemplate('ViTEquation', 'latex', s:_.'q', 0, 1, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'])
+call vit#NewTemplate('ViTGather',   'latex', s:_.'g', 0, 1, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'])
+call vit#NewTemplate('ViTAlign',    'latex', s:_.'a', 0, 1, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'])
+call vit#NewTemplate('ViTAlignAt',  'latex', s:_.'A', 0, 1, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTProof',    'latex', s:_.'r', 0, 1, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'])
+call vit#NewTemplate('ViTMatrix',   'latex', s:_.'m', 0, 1, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'], 1, ['Columns: '])
 
 " ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
 
-call vit#NewTemplate('ViTMathMode',    s:_.'$',    1, 1, [0, 1],  0, ['$'],            ['$'])
-call vit#NewTemplate('ViTParentheses', s:_.'1',    1, 1, [0, 7],  0, ['\left( '],      [' \right)'])
-call vit#NewTemplate('ViTBrackets',    s:_.'2',    1, 1, [0, 7],  0, ['\left[ '],      [' \right]'])
-call vit#NewTemplate('ViTBraces',      s:_.'3',    1, 1, [0, 8],  0, ['\left\{ '],     [' \right\}'])
-call vit#NewTemplate('ViTBars',        s:_.'4',    1, 1, [0, 7],  0, ['\left| '],      [' \right|'])
-call vit#NewTemplate('ViTOverbrace',   s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
-call vit#NewTemplate('ViTUnderbrace',  s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
-call vit#NewTemplate('ViTBoxed',       s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'])
-call vit#NewTemplate('ViTFrac', '', 1, 1, [0, 6], 0, ['\frac{'],  ['}{}'])
-call vit#NewTemplate('ViTSqrt', '', 1, 1, [0, 6], 0, ['\sqrt{'],  ['}'])
-call vit#NewTemplate('ViTRoot', '', 1, 1, [0, 6], 0, ['\sqrt['],  [']{}'])
-call vit#NewTemplate('ViTSum',  '', 1, 1, [0, 6], 0, ['\sum_{'],  ['}^{}'])
-call vit#NewTemplate('ViTInt',  '', 1, 1, [0, 6], 0, ['\int_{'],  ['}^{}'])
-call vit#NewTemplate('ViTProd', '', 1, 1, [0, 7], 0, ['\prod_{'], ['}^{}'])
-call vit#NewTemplate('ViTLim',  '', 1, 1, [0, 6], 0, ['\lim_{'],  ['}'])
-call vit#NewTemplate('ViTSup',  '', 1, 1, [0, 6], 0, ['\sup_{'],  ['}'])
-call vit#NewTemplate('ViTInf',  '', 1, 1, [0, 6], 0, ['\inf_{'],  ['}'])
+call vit#NewTemplate('ViTMathMode',    'latex', s:_.'$',    1, 1, [0, 1],  0, ['$'],            ['$'])
+call vit#NewTemplate('ViTParentheses', 'latex', s:_.'1',    1, 1, [0, 7],  0, ['\left( '],      [' \right)'])
+call vit#NewTemplate('ViTBrackets',    'latex', s:_.'2',    1, 1, [0, 7],  0, ['\left[ '],      [' \right]'])
+call vit#NewTemplate('ViTBraces',      'latex', s:_.'3',    1, 1, [0, 8],  0, ['\left\{ '],     [' \right\}'])
+call vit#NewTemplate('ViTBars',        'latex', s:_.'4',    1, 1, [0, 7],  0, ['\left| '],      [' \right|'])
+call vit#NewTemplate('ViTOverbrace',   'latex', s:_.'<F1>', 1, 1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
+call vit#NewTemplate('ViTUnderbrace',  'latex', s:_.'<F2>', 1, 1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
+call vit#NewTemplate('ViTBoxed',       'latex', s:_.'<F3>', 1, 1, [0, 7],  0, ['\boxed{'],      ['}'])
+call vit#NewTemplate('ViTFrac', 'latex', '', 1, 1, [0, 6], 0, ['\frac{'],  ['}{}'])
+call vit#NewTemplate('ViTSqrt', 'latex', '', 1, 1, [0, 6], 0, ['\sqrt{'],  ['}'])
+call vit#NewTemplate('ViTRoot', 'latex', '', 1, 1, [0, 6], 0, ['\sqrt['],  [']{}'])
+call vit#NewTemplate('ViTSum',  'latex', '', 1, 1, [0, 6], 0, ['\sum_{'],  ['}^{}'])
+call vit#NewTemplate('ViTInt',  'latex', '', 1, 1, [0, 6], 0, ['\int_{'],  ['}^{}'])
+call vit#NewTemplate('ViTProd', 'latex', '', 1, 1, [0, 7], 0, ['\prod_{'], ['}^{}'])
+call vit#NewTemplate('ViTLim',  'latex', '', 1, 1, [0, 6], 0, ['\lim_{'],  ['}'])
+call vit#NewTemplate('ViTSup',  'latex', '', 1, 1, [0, 6], 0, ['\sup_{'],  ['}'])
+call vit#NewTemplate('ViTInf',  'latex', '', 1, 1, [0, 6], 0, ['\inf_{'],  ['}'])
 
 unlet s:_
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ SCANNING ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+call vit#ScanFromLog(expand('%:p'), expand('%:p:h'))
+call listener_add({bufnr, ... -> vit#ScanFromBuffer(expand('%:p'), expand('%:p:h'))}, s:buf)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~
@@ -166,4 +177,6 @@ unlet s:_
 " reset cpoptions as per :h usr_41
 let &cpo = s:save_cpo
 unlet s:save_cpo
+
+unlet s:buf
 

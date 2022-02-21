@@ -15,8 +15,9 @@ ViT						    *vit* *vit-toc*
     2.g The |g:vit_jump_chars| option
     2.h The |g:vit_template_remove_on_abort| option
     2.i The |g:vit_comment_line| option
-    2.j The |g:vit_commands| option
-    2.k The |g:vit_autosurround_chars| option
+    2.j The |g:vit_static_commands| option
+    2.k The |g:vit_includes| option
+    2.l The |g:vit_autosurround_chars| option
 3. Templates					    |vit-templates|
     3.a Definition of new Templates		    |vit-templates-new|
     3.b Builtin Templates			    |vit-templates-builtin|
@@ -116,22 +117,41 @@ Default value: >
     let g:vit_comment_line = '% '.repeat('~', 70)
 <
 ------------------------------------------------------------------------------
-2.j The *g:vit_commands* option (list of strings)
+2.j The *g:vit_static_commands* option
+	(dict of string -> list of strings and dicts)
 
-Sets the commands used for static completion (see |vit-completion|). Per
-default, this value is read from a file called 'latex_commands.txt' which has
-one command per line, with optional empty lines. One can replace this file and
-place it anywhere in the 'runtimepath' of Vim to use a different set of static
-completion items.
+Sets the comands and templates that are accessible to autocompletion in the
+entire Vim instance. Each key is a 'class' (see |vit-scanning| for more info)
+mapping to a list of completion option item strings or dicts. This value is
+copied from when adding new commands to the global 'g:vit_commands' cache.
+
+Per default, this dict is populated for the key 'latex' by reading from a file
+called 'latex_commands.txt' which has one command per line, with optional
+empty lines. One can replace this file and place it anywhere in the
+'runtimepath' of Vim to use a different set of global static completion items.
 Default value: >
     try
-        let g:vit_commands = readfile(findfile('latex_commands.txt'))
+        let g:vit_static_commands = {
+	    \ 'latex': readfile(findfile('latex_commands.txt', &runtimepath))
+	    \ }
     catch
-	let g:vit_commands = []
+	let g:vit_static_commands = {}
     endtry
 <
 ------------------------------------------------------------------------------
-2.k The *g:vit_autosurround_chars* option (list of [string, string] lists)
+2.k The *g:vit_includes* option (list of strings)
+
+Sets the currently active 'classes' for the current buffer when used as
+'b:vit_includes' variable, and sets the default active 'classes' for new
+buffers when set as global variable 'g:vit_includes'. The default value of
+this option makes it so that the commands read in by |g:vit_static_commands|'s
+default value are accessible by default in all ViT buffers.
+Default value: >
+    let g:vit_includes = ['latex']
+<
+
+------------------------------------------------------------------------------
+2.l The *g:vit_autosurround_chars* option (list of [string, string] lists)
 
 Sets the chars that are automatically surrounded in insert mode. I.e. the
 first index is listened for, and then the second index is inserted after the
@@ -150,12 +170,12 @@ your document, without having to type out the full thing.
 ------------------------------------------------------------------------------
 3.a Definition of new Templates			    *vit-templates-new*
 
-Templates are defined using the |ViTNewTemplate()| function.
+Templates are defined using the |vit#NewTemplate()| function.
 
 A new template definition is easy to add, just add a new file containing the
 definitions. For instance, here we will choose 'definitions.vim'. The file
 could look like this: >
-    call ViTNewTemplate('MyTemplate', '<F6>', 0, 0, [], 0,
+    call vit#NewTemplate('MyTemplate', '<F6>', 0, 0, [], 0,
 			\ ['This is some text'], ['This is some more text'])
 Then add the following |:autocmd| wrapped in an |:augroup| to your vimrc: >
     augroup MyDefinitions
@@ -169,21 +189,23 @@ and then include your template definitions, or anything else you added to
 						    *vit-templates-arguments*
 A template with arguments may contain an arbitrary number of template
 placeholders with the text '#1', '#2', '#3', ... They must be ordered from 1
-to {numargs} (see |ViTNewTemplate()|) but each template placeholder may be put
+to {numargs} (see |vit#NewTemplate()|) but each template placeholder may be put
 in as many lines as many times as desired. For an example, see |vit-env|.
 
 Unfortunately, there is no way yet to include the literal '#1' without it
 being replaced by the template insertion. However, the user may just
 manually put '#1' when asked for the replacement text.
 
-						    *ViTNewTemplate()*
-ViTNewTemplate({name}, {keybind}, {inlinemode}, {completionitem}
+						    *vit#NewTemplate()*
+vit#NewTemplate({name}, {class}, {keybind}, {inlinemode}, {completionitem}
 	       {finalcursoroffset}, {middleindent},
 	       {textbefore}, {textafter} [, {numargs}
 	       [, {argname} [, {argdefault} [, {argcomplete}]]]])
-	The |ViTNewTemplate()| function will register a new template command
-	with the ViT plugin. The operation mode of the created command depends
-	on the current mode (|vim-modes|) and the truthiness of {inlinemode}:
+	The |vit#NewTemplate()| function will register a new template command
+	with the ViT plugin. A function performing the tempalte will be
+	returned as |funcref()|. The operation mode of the created command
+	depends on the current mode (|vim-modes|) and the truthiness of
+	{inlinemode}:
 
 	Normal Mode: ~
 	    Both:	     Insert the template at the cursor position.
@@ -207,15 +229,14 @@ ViTNewTemplate({name}, {keybind}, {inlinemode}, {completionitem}
 <
 	The function will do the following steps, depending on the arguments
 	provided, where steps 3. and 4. depend on {keybind} being non-empty,
-	and '{ompletionitem} being set respectively:
+	and {ompletionitem} being set respectively:
 	    1. Define the behavior of the command to do:
 		1.a. Insert {textbefore} and {textafter} surrounding the
 		     to-be surrounded text.
 		2.b. Replace the template arguments if there are any (see
 		     |vit-templates-arguments|).
-	    2. Define a new command with name {name}.
-	    [3. Set up a keybind for the command with {keybind}.]
-	    [4. Register the command with the |vit-completion| system.]
+	    [2. Set up a keybind for the command with {keybind}.]
+	    [3. Register the command with the |vit-completion| system.]
 
 	The {finalcursoroffset} argument must be of form [] for no action,
 	[line] for putting the cursor in the specified line at column 0, or
@@ -232,6 +253,12 @@ ViTNewTemplate({name}, {keybind}, {inlinemode}, {completionitem}
 	The {textbefore} ({textafter}) option is a list of strings of text
 	that is inserted before (after) the to-be surrounded text. These
 	may be left empty by passing [].
+
+	The {class} option sets the local class for the completion item. For
+	instance if one registers a template with class 'abc', then this
+	template will only be accessible if 'abc' is included in the current
+	buffer. This value may be set to 'latex' to act as global value. See
+	|vit-scanning| for more details.
 
 	The {numargs}, {argname}, {argdefault}, and {argcomplete} options
 	specify the number of templating arguments (defaults to 0), the
@@ -258,82 +285,87 @@ Keybind		n		y		y
 <ViT> is a placeholder for the value configured in |g:vit_leader|.
 
 						    *vit-env*
-:ViTEnv	or <C-E>	    Starts a simple environment template: >
+ViTEnv or <C-E>		    Starts a simple environment template: >
 			    \begin{#1}
 				*
 			    \end{#1}
 <						    *vit-enum* *vit-enum-left*
 						    *vit-enum-alph*
 						    *vit-center* *vit-tabular*
-:ViTEnum or |<ViT>|e	    Same as |vit-env| for enumerate.
-:ViTEnumLeft or |<ViT>|E      Same as |vit-enum| for a left-aligned enumerate.
-:ViTAlphEnum or |<ViT>|l      Same as |vit-enum| for enumerate of alphabetic
-			    list items.
-:ViTAlphEnumLeft or |<ViT>|L  Same as |vit-enum-alph| for a left-aligned
-			    enumerate of alphabetic list items.
-:ViTCenter or |<ViT>|c	    Same as |vit-env| for center.
-:ViTTabular or |<ViT>|t	    Starts a tabular environment template: >
-			    \begin{tabular}{#1}
-				*
-			    \end{tabular}
-<						    *vit-math* *vit-gather*
+						    *vit-section* *vit-para*
+ViTEnum or |<ViT>|e	     Same as |vit-env| for enumerate.
+ViTEnumLeft or |<ViT>|E        Same as |vit-enum| for a left-aligned enumerate.
+ViTAlphEnum or |<ViT>|l        Same as |vit-enum| for enumerate of alphabetic
+			     list items.
+ViTAlphEnumLeft or |<ViT>|L    Same as |vit-enum-alph| for a left-aligned
+			     enumerate of alphabetic list items.
+ViTCenter or |<ViT>|c	     Same as |vit-env| for center.
+ViTTabular or |<ViT>|t	     Starts a tabular environment template: >
+			     \begin{tabular}{#1}
+			          *
+			     \end{tabular}
+ViTSection or |<ViT>|s         Starts a section with label template: >
+			     \section{#1}
+			     \label{sec:#2}
+ViTSubSection or |<ViT>|ss     Same as |vit-section| but for subsection.
+ViTSubSubSection or |<ViT>|sss Same as |vit-section| but for subsubsection.
+ViTParagraph or |<ViT>|p       Same as |vit-section| but for paragraph.
+ViSubTParagraph or |<ViT>|pp   Same as |vit-section| but for subparagraph.
+ 						    *vit-math* *vit-gather*
 						    *vit-equation* *vit-align*
 						    *vit-proof* *vit-matrix*
-:ViTEquation or |<ViT>|q      Same as |vit-env| for equation*.
-:ViTGather or |<ViT>|g	    Same as |vit-env| for gather*.
-:ViTAlign or |<ViT>|a	    Same as |vit-env| for align*.
-:ViTAlignAt or |<ViT>|A	    Same as |vit-env| for alignat*: >
-			    \begin{alignat*}{#1}
-				*
-			    \end{alignat*}
-:ViTProof or |<ViT>|r	    Same as |vit-env| for proof.
-:ViTMatrix or |<ViT>|m	    Same as |vit-env| for matrix: >
-			    \begin{matrix}{#1}
-				*
-			    \end{matrix}
+ViTEquation or |<ViT>|q        Same as |vit-env| for equation*.
+ViTGather or |<ViT>|g	     Same as |vit-env| for gather*.
+ViTAlign or |<ViT>|a	     Same as |vit-env| for align*.
+ViTAlignAt or |<ViT>|A	     Same as |vit-env| for alignat*: >
+			     \begin{alignat*}{#1}
+				 *
+			     \end{alignat*}
+ViTProof or |<ViT>|r	     Same as |vit-env| for proof.
+ViTMatrix or |<ViT>|m	     Same as |vit-env| for matrix: >
+			     \begin{matrix}{#1}
+				 *
+			     \end{matrix}
 <						    *vit-math-mode*
 						    *vit-parentheses*
 						    *vit-overbrace* *vit-frac*
 						    *vit-sqrt* *vit-root*
 						    *vit-sum* *vit-lim*
-:ViTMathMode or |<ViT>|$      Start text math mode template: >
-			    $*$
-:ViTParentheses or |<ViT>|1   Starts a left-right parentheses template: >
-			    \left( * \right)
-:ViTBrackets or |<ViT>|2      Same as |vit-parentheses| but with brackets ([).
-:ViTBraces or |<ViT>|3	    Same as |vit-parentheses| but with braces ({).
-:ViTBars or |<ViT>|4	    Same as |vit-parentheses| but with bars (|).
-:ViTOverbrace or |<ViT>|<F1>  Starts a overbrace template: >
-			    \overbrace{*}^{}
-:ViTUnderbrace or |<ViT>|<F2> Same as |vit-overbrace| but with an underbrace.
-:ViTBoxed or |<ViT>|<F3>      Starts a boxed template: >
-			    \boxed{*}
-:ViTFrac		    Starts a fraction template: >
-			    \frac{*}{}
-:ViTSqrt		    Starts a square root template: >
-			    \sqrt{*}
-:ViTRoot		    Same as |vit-sqrt| but for an n-th root: >
-			    \sqrt[*]{}
-:ViTSum			    Starts a sum template: >
-			    \sum_{*}^{}
-:ViTInt			    Same as |vit-sum| but for an integral.
-:ViTProd		    Same as |vit-sum| but for a product.
-:ViTLim			    Starts a limit template: >
-			    \lim_{*}
-:ViTSup			    Same as |vit-lim| but for the supremum.
-:ViTInf			    Same as |vit-lim| but for the infimum.
+ViTMathMode or |<ViT>|$        Start text math mode template: >
+			     $*$
+ViTParentheses or |<ViT>|1     Starts a left-right parentheses template: >
+			     \left( * \right)
+ViTBrackets or |<ViT>|2        Same as |vit-parentheses| but with brackets ([).
+ViTBraces or |<ViT>|3	     Same as |vit-parentheses| but with braces ({).
+ViTBars or |<ViT>|4	     Same as |vit-parentheses| but with bars (|).
+ViTOverbrace or |<ViT>|<F1>    Starts a overbrace template: >
+			     \overbrace{*}^{}
+ViTUnderbrace or |<ViT>|<F2>   Same as |vit-overbrace| but with an underbrace.
+ViTBoxed or |<ViT>|<F3>        Starts a boxed template: >
+			     \boxed{*}
+ViTFrac			     Starts a fraction template: >
+			     \frac{*}{}
+ViTSqrt			     Starts a square root template: >
+			     \sqrt{*}
+ViTRoot			     Same as |vit-sqrt| but for an n-th root: >
+			     \sqrt[*]{}
+ViTSum			     Starts a sum template: >
+			     \sum_{*}^{}
+ViTInt			     Same as |vit-sum| but for an integral.
+ViTProd			     Same as |vit-sum| but for a product.
+ViTLim			     Starts a limit template: >
+			     \lim_{*}
+ViTSup			     Same as |vit-lim| but for the supremum.
+ViTInf			     Same as |vit-lim| but for the infimum.
 
 ==============================================================================
 4. Insert-Mode Completion			    *vit-completion*
 
-Insert-Mode completion works by utilizing the Vim builtin omni-func
-completion (|compl-omni|). The lowest priority items are the ones read in by
-|g:vit_commands|, these will be referred to as static completion items. Then,
-there are template completion items, which are defined by the
-|ViTNewTemplate()| function if the {completionitem} option is truthy.
-
-Static completion items work as expected, one can select them from the
-completion popup menu and they will be inserted as-is.
+Insert-Mode completion works by utilizing the Vim builtin omni-func completion
+(|compl-omni|). The lowest priority items are the ones read in by
+|g:vit_static_commands|, these will be referred to as static completion items.
+Then, there are template completion items, which are defined by the
+|vit#NewTemplate()| function if the {completionitem} option is truthy.
 
 						    *vit-completion-start*
 						    *i_<BSlash>*
@@ -348,19 +380,60 @@ completion item text '\frac{' will start up the template at the current
 position. Instead of inserting '\frac{' it will insert '\frac{}{}'.
 
 New template completion items are suggest to be added by calling
-|ViTNewTemplate()| but it is also possible to manually define them using the
-separate |ViTNewCompletionOption()| function.
+|vit#NewTemplate()| but it is also possible to manually define them using the
+separate |vit#NewCompletionOption()| function.
 
-						    *ViTNewCompletionOption()*
-ViTNewCompletionOption({name}, {command})
+						    *vit-scanning*
+ViT provides a multi-threaded Python utility to read and scan LaTeX '.sty',
+'.cls', and '.tex' files. When a new file is scanned, the commands,
+environments, and includes of this file will be stored in a global cache (
+'g:vit_commands' which is a copy of |g:vit_static_commands|). Each buffer has
+a local list of included source files (see |g:vit_includes|) which will
+dictate which of these completion options are usable in the current buffer.
+The name of the source file (referred to as 'class') is used to index these
+includes.
+
+Scanning will occur once when setting the |filetype-plugin|, and once when
+writing the full buffer. A faster, less thorough scan is performed each time a
+change is made to the currently loaded buffer. One may also manually scan
+files using the functions |vit#ScanFromBuffer()| and |vit#ScanFromLog()|.
+
+						    *vit#ScanFromBuffer()*
+vit#ScanFromBuffer({buf}, {cwd})
+	This function will do a fast scan of the buffer {buf} with the working
+	directory {cwd}. The operation will only look at the contents of the
+	current buffer and no other source files. No information is removed
+	from either the include list or the global command cache. This enables
+	the quick scanning of newly written commands without slowing down
+	editing.
+
+						    *vit#ScanFromLog()*
+vit#ScanFromLog({buf}, {cwd})
+	This function will do a thorough scan of the file of {buf} and its
+	direct dependencies with the working directory {cwd}. To do so, the
+	file {buf} must have been compiled at least once to generate a '.log'
+	file. If this file was not created or cannot be found, this scan will
+	fail.
+
+	This function updates the include list of {buf} and modifies the
+	global command cache by repopulating the 'class' keys which have been
+	newly read in.
+
+						    *vit#NewCompletionOption()*
+vit#NewCompletionOption({name}, {class} [, {command}])
 	This function adds a new |vit-completion-template| item to insert mode
 	completion.
 
 	The argument {name} will show up in the popup menu to be selected.
 
+	The argument {class} determines which local class this completion
+	option will be a part of. Set to 'latex' to act as global option.
+	See |vit-scanning|.
+
 	The argument {command} is the command that will be called to set the
 	text to be inserted instead of {name} directly. It must be publicly
-	accessible.
+	accessible. If {command} is '', the default value, it will simply act
+	like a regular insert mode completion item.
 
 ==============================================================================
 5. Compiling					    *vit-compiling*
