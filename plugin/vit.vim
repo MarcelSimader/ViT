@@ -127,6 +127,7 @@ function vit#CompileCallback(job, exit, scan = 0)
     if g:vit_max_errors > 0
         call setbufvar(buf, 'vit_signs', {})
         call sign_unplace('ViT')
+        call setqflist([], 'r')
     endif
     " success
     if a:exit == 0
@@ -155,6 +156,10 @@ function vit#CompileCallback(job, exit, scan = 0)
                         let errline = str2nr(trim(l_err[1]))
                         " set all things related to the errors
                         call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
+                        call setqflist([
+                                    \ #{bufnr: buf, lnum: errline, text: errmsg,
+                                    \   type: 'E', module: bufname(buf), valid: 1}],
+                                    \ 'a')
                         let vit_signs_dict[errline] = errmsg
                         let num_matched += 1
                         let statusmsgs += ['Compiled with errors (line '
