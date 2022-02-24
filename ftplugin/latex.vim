@@ -127,11 +127,11 @@ call vit#NewTemplate('ViTAlphEnumLeft', 'latex', s:_.'L', 0, 1, [1, 5], 4, ['\be
 call vit#NewTemplate('ViTCenter',       'latex', s:_.'c', 0, 1, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
 call vit#NewTemplate('ViTTabular',      'latex', s:_.'t', 0, 1, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
 
-call vit#NewTemplate('ViTSection',       'latex', s:_.'s',   0, 1, [3], 0, ['\section{#1}',       '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
-call vit#NewTemplate('ViTSubSection',    'latex', s:_.'ss',  0, 1, [3], 0, ['\subsection{#1}',    '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
-call vit#NewTemplate('ViTSubSubSection', 'latex', s:_.'sss', 0, 1, [3], 0, ['\subsubsection{#1}', '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
-call vit#NewTemplate('ViTParagraph',     'latex', s:_.'p',   0, 1, [3], 0, ['\paragraph{#1}',     '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
-call vit#NewTemplate('ViTSubParagraph',  'latex', s:_.'pp',  0, 1, [3], 0, ['\subparagraph{#1}',  '\label{sec:#2}'], [''], 2, ['Name: ', 'Label: '])
+call vit#NewTemplate('ViTSection',       'latex', s:_.'s',   0, 1, [3], 0, ['\section{#1}',       '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSubSection',    'latex', s:_.'ss',  0, 1, [3], 0, ['\subsection{#1}',    '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSubSubSection', 'latex', s:_.'sss', 0, 1, [3], 0, ['\subsubsection{#1}', '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
+call vit#NewTemplate('ViTParagraph',     'latex', s:_.'p',   0, 1, [3], 0, ['\paragraph{#1}',     '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSubParagraph',  'latex', s:_.'pp',  0, 1, [3], 0, ['\subparagraph{#1}',  '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
 
 " ~~~~~~~~~~ math
 call vit#NewTemplate('ViTEquation', 'latex', s:_.'q', 0, 1, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'])

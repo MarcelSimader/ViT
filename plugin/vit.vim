@@ -67,8 +67,8 @@ call s:Config('g:vit_compiler', {-> 'pdflatex'})
 call s:Config('g:vit_compiler_flags', {-> ''})
 
 call s:Config('g:vit_max_errors', {-> 10})
-call s:Config('g:vit_error_regexp', {-> '^!\s*\(.*\).*$'})
-call s:Config('g:vit_error_line_regexp', {-> '^l\.\(\d\+\).*$'})
+call s:Config('g:vit_error_regexp', {->
+            \ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$'})
 
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
@@ -100,28 +100,31 @@ function vit#Compile(filepath, pwd, silent = '', flags = '')
     if a:silent == '!'
         " run background job
         let s:vit_compile_currjob = job_start(
-            \ g:vit_compiler.' --interaction=nonstopmode'
+            \ g:vit_compiler.' -file-line-error -interaction=nonstopmode'
             \     .g:vit_compiler_flags.' '.a:flags.' "'.a:filepath.'"',
             \ #{exit_cb: {job, exit ->
-                    \ vit#CompileCallback(job, exit, #{buf: a:filepath, cwd: a:pwd})},
-                \ cwd: a:pwd})
+            \       vit#CompileCallback(job, exit, a:filepath, a:pwd, 1)},
+            \   cwd: a:pwd})
     else
         " open terminal
         :vertical :belowright call term_start(
-            \ g:vit_compiler.' '.g:vit_compiler_flags.' '
+            \ g:vit_compiler.' -file-line-error '.g:vit_compiler_flags.' '
             \     .a:flags.' "'.a:filepath.'"',
-            \ {'term_finish': 'close', 'cwd': a:pwd})
+            \ #{term_finish: 'close', exit_cb: {job, exit ->
+            \       vit#CompileCallback(job, exit, a:filepath, a:pwd, 1)},
+            \   cwd: a:pwd})
     endif
 endfunction
 
 if g:vit_max_errors > 0
     call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 endif
-function vit#CompileCallback(job, exit, scan = 0)
-    let buf = bufname()
+" TODO: document the arguments of this function as it got quite complex
+function vit#CompileCallback(job, exit, filepath, pwd, scan = 0)
+    let buf = bufnr(a:filepath)
     " call scanning
-    if type(a:scan) == v:t_dict
-        call vit#ScanFromLog(a:scan['buf'], a:scan['cwd'])
+    if a:scan
+        call vit#ScanFromLog(a:filepath, a:pwd)
     endif
     " remove old signs
     if g:vit_max_errors > 0
@@ -140,51 +143,41 @@ function vit#CompileCallback(job, exit, scan = 0)
         " read signs dict
         let vit_signs_dict = getbufvar(buf, 'vit_signs', {})
         " loop over lines in logfile
-        let [logfile, lnum, num_matched] = [readfile(expand('%:r').'.log'), 0, 0]
-        let logfile_len = len(logfile)
+        let logfile = readfile(findfile(fnamemodify(a:filepath, ':r').'.log', a:pwd))
+        let [lnum, num_matched, logfile_len] = [0, 0, len(logfile)]
         while lnum < logfile_len && num_matched < g:vit_max_errors
             " try to match message for error
-            let m_err = matchlist(logfile[lnum], g:vit_error_regexp)
-            if len(m_err) >= 2
-                let errmsg = trim(m_err[1])
-                " try to match line for error, we go for as long as we can here
-                let added_statusmsg = 0
-                while (lnum + 1) < logfile_len
-                    let lnum += 1
-                    let l_err = matchlist(logfile[lnum], g:vit_error_line_regexp)
-                    if len(l_err) >= 2
-                        let errline = str2nr(trim(l_err[1]))
-                        " set all things related to the errors
-                        call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
-                        call setqflist([
-                                    \ #{bufnr: buf, lnum: errline, text: errmsg,
-                                    \   type: 'E', module: bufname(buf), valid: 1}],
-                                    \ 'a')
-                        let vit_signs_dict[errline] = errmsg
-                        let num_matched += 1
-                        let statusmsgs += ['Compiled with errors (line '
-                                    \      .errline.'): '.errmsg]
-                        let added_statusmsg = 1
-                        " and we can stop now
-                        break
-                    endif
-                endwhile
-                if !added_statusmsg
-                    let statusmsgs += ['Compiled with errors: '.errmsg]
-                endif
+            let errmatch = matchlist(logfile[lnum], g:vit_error_regexp)
+            if len(errmatch) < 3
+                let lnum += 1
+                continue
             endif
+            let [errfile, errline, errmsg]
+                        \ = [errmatch[1], str2nr(errmatch[2]), errmatch[3]]
+            echomsg errmatch
+            " place sign
+            call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
+            " place quickfix list
+            call setqflist([
+                        \ #{bufnr: buf, lnum: errline, text: errmsg,
+                        \   type: 'E', module: errfile, valid: 1}],
+                        \ 'a')
+            " set signs for hover func
+            let vit_signs_dict[errline] = errmsg
+            " add status message
+            let statusmsgs += ['Compiled with errors (line '.errline.'): '.errmsg]
+            " accounting
+            let num_matched += 1
             let lnum += 1
         endwhile
 
         echohl ErrorMsg
         if !empty(statusmsgs)
             echomsg statusmsgs[0]
+        elseif g:vit_max_errors == 0
+            echomsg 'Compiled wtih errors.'
         else
-            if g:vit_max_errors == 0
-                echomsg 'Compiled wtih errors.'
-            else
-                echomsg 'Compiled with errors, but no error messages found in .log file.'
-            endif
+            echomsg 'Compiled with errors, but no error messages found in .log file.'
         endif
         echohl None
     catch /.*E484.*/

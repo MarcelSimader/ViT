@@ -6,7 +6,6 @@ g:vit_autosurround_chars	ViT.txt	/*g:vit_autosurround_chars*
 g:vit_comment_line	ViT.txt	/*g:vit_comment_line*
 g:vit_compiler	ViT.txt	/*g:vit_compiler*
 g:vit_compiler_flags	ViT.txt	/*g:vit_compiler_flags*
-g:vit_error_line_regexp	ViT.txt	/*g:vit_error_line_regexp*
 g:vit_error_regexp	ViT.txt	/*g:vit_error_regexp*
 g:vit_includes	ViT.txt	/*g:vit_includes*
 g:vit_jump_chars	ViT.txt	/*g:vit_jump_chars*
