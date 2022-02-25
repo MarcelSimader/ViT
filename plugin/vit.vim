@@ -14,8 +14,8 @@ if !exists('*s:LoadViT')
         endif
         let buf = bufname()
         unlet g:vit_did_plugin g:vit_did_ftdetect
-        call setbufvar(buf, 'current_syntax', '')
-        call setbufvar(buf, 'did_ftplugin', '')
+        call setbufvar(buf, 'current_syntax', 0)
+        call setbufvar(buf, 'did_ftplugin', 0)
         " reload scripts
         let start = reltime()
         for file in ['ftdetect/latex.vim', 'ftplugin/latex.vim', 'plugin/vit.vim',
@@ -60,26 +60,37 @@ function s:Config(name, value, default = v:none)
     endtry
 endfunction
 
+" TODO: document vit_enable_* options and compiler options
+" -
+call s:Config('g:vit_enable_keybinds', {-> 1})
 call s:Config('g:vit_leader', {-> '<C-@>'})
-call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
+call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
+call s:Config('g:vit_autosurround_chars', {->
+            \ [['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']]})
 
-call s:Config('g:vit_compiler', {-> 'pdflatex'})
-call s:Config('g:vit_compiler_flags', {-> ''})
+call s:Config('g:vit_num_compilations', {-> 1})
+call s:Config('g:vit_compiler', {-> ['pdflatex', 'pdflatex']})
+call s:Config('g:vit_compiler_flags', {->
+            \ ['-interaction=nonstopmode -file-line-error', '-file-line-error']})
 
 call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_error_regexp', {->
             \ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$'})
 
-call s:Config('g:vit_template_remove_on_abort', {-> 1})
-call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
-call s:Config('g:vit_autosurround_chars', {->
-            \ [['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']]})
+" unimplemented
+call s:Config('g:vit_enable_completion', {-> 1})
 call s:Config('g:vit_static_commands', {->
             \ #{latex: readfile(findfile('latex_commands.txt', &runtimepath))}}, {})
+call s:Config('g:vit_template_remove_on_abort', {-> 1})
+
+" unimplemented
+call s:Config('g:vit_enable_scanning', {-> 1})
 call s:Config('g:vit_commands', {-> copy(g:vit_static_commands)}, {})
 call s:Config('g:vit_includes', {-> ['latex']})
+
 " TODO: maybe document this
 call s:Config('g:vit_scan_prg', {-> findfile('bin/scan_latex_sources', &runtimepath)})
+call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
@@ -93,25 +104,54 @@ call s:Config('g:vit_scan_prg', {-> findfile('bin/scan_latex_sources', &runtimep
 "   [silent,] can be '!' to be executed as background job, otherwise
 "       open a new terminal window
 "   [flags,] can be set to pass flags to the compiler
-function vit#Compile(filepath, pwd, silent = '', flags = '')
+"   [numcomp,] indicates how many times to compile the file, 0 indicates no
+"       compilation at all
+function vit#Compile(filepath, pwd, silent = '', flags = '',
+            \        numcomp = v:none, currentcomp = v:none)
+    " apply optional arg
+    let numcomp = (a:numcomp is v:none) ? g:vit_num_compilations : a:numcomp
+    let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
+    " abort immediately if we compile 0 or fewer times
+    if numcomp < 1
+        return
+    endif
+    redraw | echo 'Compiling No. '.currentcomp.' of '.numcomp.'...'
     " save file
-    w
+    execute 'update '.a:filepath
     " run compilation
     if a:silent == '!'
         " run background job
+        if len(g:vit_compiler) < 1
+            echohl ErrorMsg
+            redraw
+            echomsg 'No compiler defined for background process compilation in ViT: '
+                \ .string(g:vit_compiler).' '.string(g:vit_compiler_flags)
+            echohl None
+            return
+        endif
         let s:vit_compile_currjob = job_start(
-            \ g:vit_compiler.' -file-line-error -interaction=nonstopmode'
-            \     .g:vit_compiler_flags.' '.a:flags.' "'.a:filepath.'"',
-            \ #{exit_cb: {job, exit ->
-            \       vit#CompileCallback(job, exit, a:filepath, a:pwd, 1)},
+            \ join([g:vit_compiler[0], g:vit_compiler_flags[0],
+            \       a:flags, a:filepath], ' '),
+            \ #{exit_cb: {_, exit ->
+            \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
+            \                           numcomp, currentcomp)},
             \   cwd: a:pwd})
     else
         " open terminal
+        if len(g:vit_compiler) < 2
+            echohl ErrorMsg
+            redraw
+            echomsg 'No compiler defined for terminal compilation in ViT: '
+                \ .string(g:vit_compiler).' '.string(g:vit_compiler_flags)
+            echohl None
+        endif
         :vertical :belowright call term_start(
-            \ g:vit_compiler.' -file-line-error '.g:vit_compiler_flags.' '
-            \     .a:flags.' "'.a:filepath.'"',
-            \ #{term_finish: 'close', exit_cb: {job, exit ->
-            \       vit#CompileCallback(job, exit, a:filepath, a:pwd, 1)},
+            \ join([g:vit_compiler[1], g:vit_compiler_flags[1],
+            \       a:flags, a:filepath], ' '),
+            \ #{term_finish: 'close',
+            \   exit_cb: {_, exit ->
+            \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
+            \                           numcomp, currentcomp)},
             \   cwd: a:pwd})
     endif
 endfunction
@@ -120,24 +160,29 @@ if g:vit_max_errors > 0
     call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 endif
 " TODO: document the arguments of this function as it got quite complex
-function vit#CompileCallback(job, exit, filepath, pwd, scan = 0)
+function vit#CompileCallback(exit, filepath, pwd, silent, flags, numcomp, currentcomp)
+    " check if we still want to compile or not
+    if a:currentcomp < a:numcomp
+        " recursively call and go no farther in callback
+        call vit#Compile(a:filepath, a:pwd, a:silent, a:flags,
+                    \    a:numcomp, a:currentcomp + 1)
+        return
+    endif
     let buf = bufnr(a:filepath)
     " call scanning
-    if a:scan
-        call vit#ScanFromLog(a:filepath, a:pwd)
-    endif
+    call vit#ScanFromLog(a:filepath, a:pwd)
     " remove old signs
     if g:vit_max_errors > 0
         call setbufvar(buf, 'vit_signs', {})
         call sign_unplace('ViT')
         call setqflist([], 'r')
     endif
-    " success
+    " handle success
     if a:exit == 0
-        echohl MoreMsg | echo 'Compiled succesfully! Yay!' | echohl None
+        echohl MoreMsg | redraw | echo 'Compiled succesfully! Yay!' | echohl None
         return
     endif
-    " get log file of current file, if possible
+    " handle errors
     try
         let statusmsgs = []
         " read signs dict
@@ -154,7 +199,6 @@ function vit#CompileCallback(job, exit, filepath, pwd, scan = 0)
             endif
             let [errfile, errline, errmsg]
                         \ = [errmatch[1], str2nr(errmatch[2]), errmatch[3]]
-            echomsg errmatch
             " place sign
             call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
             " place quickfix list
@@ -172,6 +216,7 @@ function vit#CompileCallback(job, exit, filepath, pwd, scan = 0)
         endwhile
 
         echohl ErrorMsg
+        redraw
         if !empty(statusmsgs)
             echomsg statusmsgs[0]
         elseif g:vit_max_errors == 0
@@ -182,6 +227,7 @@ function vit#CompileCallback(job, exit, filepath, pwd, scan = 0)
         echohl None
     catch /.*E484.*/
         echohl ErrorMsg
+        redraw
         echomsg 'Compiled with errors, but found no .log file for this buffer.'
         echohl None
     endtry
@@ -274,7 +320,7 @@ function vit#NewTemplate(name, class, keybind, inlinemode, completionitem,
 
     let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
     " ~~~~~~~~~~ keymaps
-    if !empty(trim(a:keybind))
+    if !empty(trim(a:keybind)) && g:vit_enable_keybinds
         execute 'inoremap <buffer> '.a:keybind.' <C-O>:call '
                     \ .funcname.'("i", col("."))<CR>'
         execute 'xnoremap <buffer> '.a:keybind.' :call '
@@ -376,7 +422,6 @@ function vit#CompletionDetection()
     endif
     " split into [WHOLE_MATCH, Command, mode, ...] or []
     let match = matchlist(item['user_data'], 'vit_\(.*\)')
-    echomsg match
     " return if we did not find at least [WHOLE_MATCH, Command]
     if empty(get(match, 0, '')) || empty(get(match, 1, ''))
         return
@@ -439,6 +484,7 @@ function vit#ScanFileCallback(buf, msg, noremove, stdinname = '') abort
                     \ ['\begin{'.cmdname.'}'], ['\end{'.cmdname.'}'])
     else
         echohl ErrorMsg
+        redraw
         echomsg 'Unknown ScanFiles tuple type "'.type.'"'
         echohl None
     endif

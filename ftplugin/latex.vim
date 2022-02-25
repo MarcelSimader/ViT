@@ -45,31 +45,34 @@ let b:indentLine_enabled = 0
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Automatically insert second X and move in the middle X<Cursor>X
-for s:char in g:vit_autosurround_chars
-    if len(s:char) == 2
-        execute 'inoremap <buffer> '.s:char[0].' '.s:char[0].s:char[1].'<C-O>h'
-    endif
-endfor
-unlet s:char
+if g:vit_enable_keybinds
+    for s:char in g:vit_autosurround_chars
+        if len(s:char) == 2
+            execute 'inoremap <buffer> '.s:char[0].' '.s:char[0].s:char[1].'<C-O>h'
+        endif
+    endfor
+    unlet s:char
 
-" quick compiling
-nnoremap <buffer> " :ViTCompile<CR>
-nnoremap <buffer> ! :ViTCompile!<CR>
+    " quick compiling
+    nnoremap <buffer> " :ViTCompile<CR>
+    nnoremap <buffer> ! :ViTCompile!<CR>
 
-" map \ to open autocomplete and write \
-imap <buffer> <BSlash> \<C-X><C-U>
-" map vim completion to <ViT><C-Space> and <ViT><Space>
-execute 'inoremap <buffer> '.g:vit_leader.'<Space> <C-X><C-U>'
-execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <C-X><C-U>'
+    " map \ to open autocomplete and write \
+    imap <buffer> <BSlash> \<C-X><C-U>
+    " map vim completion to <ViT><C-Space> and <ViT><Space>
+    execute 'inoremap <buffer> '.g:vit_leader.'<Space> <C-X><C-U>'
+    execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <C-X><C-U>'
 
-" cursor move
-inoremap <buffer> <S-Tab> <C-O>:call vit#SmartMoveCursorRight()<CR>
+    " cursor move
+    inoremap <buffer> <S-Tab> <C-O>:call vit#SmartMoveCursorRight()<CR>
+endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMMANDS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-command -buffer -bang ViTCompile call vit#Compile(expand('%:p'), expand('%:p:h'), '<bang>')
+command -buffer -bang -count=1 ViTCompile
+            \ call vit#Compile(expand('%:p'), expand('%:p:h'), '<bang>', '', <count>)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ AUTOCOMMANDS ~~~~~~~~~~~~~~~~~~~~
@@ -78,7 +81,8 @@ command -buffer -bang ViTCompile call vit#Compile(expand('%:p'), expand('%:p:h')
 " auto compiling
 augroup ViTCompile
     autocmd!
-    autocmd BufWritePost <buffer> :ViTCompile!
+    autocmd BufWritePost <buffer>
+                \ :call vit#Compile(expand('%:p'), expand('%:p:h'), '!', '')
     autocmd CursorMoved <buffer> :call vit#CompileSignHover()
 augroup END
 
@@ -86,7 +90,8 @@ augroup END
 " the command execution
 augroup ViTCompletionDetection
     autocmd!
-    autocmd InsertCharPre <buffer> :if pumvisible() | call feedkeys("\<C-X>\<C-U>") | endif
+    autocmd InsertCharPre <buffer>
+                \ :if pumvisible() | call feedkeys("\<C-X>\<C-U>") | endif
     autocmd CompleteDone <buffer> :call vit#CompletionDetection()
 augroup END
 
