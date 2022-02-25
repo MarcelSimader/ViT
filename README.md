@@ -9,16 +9,16 @@ myself, so if you want to use it that is on you.
 
 Some of the main features are:
 
-    - Compilation commands and automatic compilation.
-    - Log file parsing for errors, error signs, and quick-fix list entries.
-    - Templating system to easily insert complex structures, with input variables and a
-      lot of predefined templates.
-    - Insert-mode completion, including quickly accessing templates and fuzzy matching.
-    - Scanning LaTeX source files and dependencies for commands and environments
-      to make them accessible during insert-mode completion.
-    - Automatically closed delimiters and (slightly) better cursor navigation for
-      LaTeX files.
-    - Some smaller things...
+- Compilation commands and automatic compilation.
+- Log file parsing for errors, error signs, and quick-fix list entries.
+- Templating system to easily insert complex structures, with input variables and a
+  lot of predefined templates.
+- Insert-mode completion, including quickly accessing templates and fuzzy matching.
+- Scanning LaTeX source files and dependencies for commands and environments
+  to make them accessible during insert-mode completion.
+- Automatically closed delimiters and (slightly) better cursor navigation for
+  LaTeX files.
+- Some smaller things...
 
 ## How to Install
 
