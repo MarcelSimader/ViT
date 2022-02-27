@@ -4,301 +4,279 @@
 #  Date: 18.02.2022
 #  (c) Marcel Simader 2022, Johannes Kepler Universität Linz
 
-from typing import List, Iterator, Set, Optional, IO
+from typing import Union, List, Optional, Iterator
+from io import TextIOBase
 
-import sys
-import os
-import pathlib
-import re
-import threading
-from queue import Queue
-from multiprocessing import Lock
-from multiprocessing.pool import ThreadPool
+import os, sys
+import argparse, inspect, pathlib, subprocess, re, shutil, ctypes, glob
+import queue, threading, time
 
 #  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #  ~~~~~~~~~~~~~~~~~~~~ GLOBALS ~~~~~~~~~~~~~~~~~~~~
 #  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-NUM_CONSUMER_THREADS = 4
-EXTENSIONS = ("**/*.tex", "**/*.sty", "**/*.cls")
+DESC_STR = r"Scan LaTeX sources for definitions (e.g. '\newcommand')."
 
-# --log mode regex
-LOGMODE_INCLUDE_REGEX = r"(?<=\()(.+)(?=\n\s*(?:Package|Document Class):\s+)"
+OUT_IO = sys.stdout
+NUM_THREADS = 8
+assert NUM_THREADS > 1
+THREAD_TIMEOUT = 0.2
 
-# types
-COMMAND = "command"
-ENVIRON = "environ"
-INCLUDE = "include"
+#  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#  ~~~~~~~~~~~~~~~~~~~~ INTERNAL GLOBALS ~~~~~~~~~~~~~~~~~~~~
+#  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# regular expressions
-_COMM  = r"%.*$"
-_OPT   = r"(?:\[[^@\]\n]+\])?"
-_CURLS = r"\{([^#@\}\n]+)\}"
-_ARGS  = r"(?:\[(\d+)\])?"
-NEW_COMMAND = {
-    "re": r"\\newcommand"       + _CURLS + _ARGS,
-    "type": COMMAND,
-}
-RENEW_COMMAND = {
-    "re": r"\\renewcommand"     + _CURLS + _ARGS,
-    "type": COMMAND,
-}
-NEW_ENV = {
-    "re": r"\\newenvironment"   + _CURLS + _ARGS,
-    "type": ENVIRON,
-}
-RENEW_ENV = {
-    "re": r"\\renewenvironment" + _CURLS + _ARGS,
-    "type": ENVIRON,
-}
-REQUIRE_PACKAGE = {
-    "re": r"\\RequirePackage"   + _OPT + _CURLS,
-    "type": INCLUDE,
-}
-USE_PACKAGE = {
-    "re": r"\\usepackage"       + _OPT + _CURLS,
-    "type": INCLUDE,
-}
-DOCUMENTCLASS = {
-    "re": r"\\documentclass"    + _OPT + _CURLS,
-    "type": INCLUDE,
-}
-REGEXES = (
-    NEW_COMMAND,
-    RENEW_COMMAND,
-    NEW_ENV,
-    RENEW_ENV,
-    REQUIRE_PACKAGE,
-    USE_PACKAGE,
-    DOCUMENTCLASS,
-)
+File = Union[str, TextIOBase]
 
-# internal constants
-CWD = os.path.curdir
-END = "END"
+#  ~~~~~~~~~~~~~~~~~~~~ OBJECTS ~~~~~~~~~~~~~~~~~~~~
+
+files, messages = queue.Queue(), queue.Queue()
+
+included_files = set()
+
+LOG_FILE_REGEX = re.compile(r"\(([-_/\.\w]+)\nPackage", re.MULTILINE)
+
+LEGAL_FILE_EXTENSIONS = (".tex", ".latex", ".sty", ".cls", ".log",)
+
+#  ~~~~~~~~~~~~~~~~~~~~ CLASSES ~~~~~~~~~~~~~~~~~~~~
+
+class Element:
+
+    prefix = "?Replace the Prefix?"
+
+    def __init__(self, file):
+        self.file = norm_class(file)
+
+    def __str__(self) -> str:
+        return f"{self.prefix} {self.file}"
+
+class RegexElement(Element):
+
+    comment = re.compile(r"%.*$")
+
+    @classmethod
+    def assert_len(cls, obj, length: int) -> None:
+        if len(obj) != length:
+            err(f"Object '{obj}' is not of expected length '{length}'")
+            sys.exit(1)
+
+    @classmethod
+    def match(cls, file, text: str) -> Iterator["RegexElement"]:
+        for m in re.finditer(cls.regex, text):
+            start, stop = m.span()
+            # check if there were comments up to now
+            if re.search(cls.comment, text[:stop]) is None:
+                yield m.groups()
+
+class Command(RegexElement):
+
+    prefix = "command"
+
+    regex = re.compile(r"\\(?:re)?newcommand(?:\*)?" \
+        + r"\{([^@#\}\n]+)\}" \
+        + r"(?:\[(\d+)\])?", re.MULTILINE)
+
+    def __init__(self, file, name, num_args):
+        super().__init__(file)
+        self.name = name
+        self.num_args = num_args
+
+    @classmethod
+    def match(cls, file, text: str) -> Iterator["Command"]:
+        for m in super().match(file, text):
+            cls.assert_len(m, 2)
+            yield Command(file, m[0], 0 if (m[1] is None) else m[1])
+
+    def __str__(self) -> str:
+        return f"{super().__str__()} {self.name} {self.num_args}"
+
+class Environment(RegexElement):
+
+    prefix = "environ"
+
+    regex = re.compile(r"\\(?:re)?newenvironment(?:\*)?" \
+        + r"\{([^@#\}\n]+)\}", re.MULTILINE)
+        # + r"(?:\[(\d+)\])?"
+
+    def __init__(self, file, name):
+        super().__init__(file)
+        self.name = name
+
+    @classmethod
+    def match(cls, file, text: str) -> Iterator["Environment"]:
+        for m in super().match(file, text):
+            cls.assert_len(m, 1)
+            yield Environment(file, m[0])
+
+    def __str__(self) -> str:
+        return f"{super().__str__()} {self.name}"
+
+class Include(RegexElement):
+
+    prefix = "include"
+
+    @classmethod
+    def include(cls, file) -> Optional["Include"]:
+        if file not in included_files:
+            return cls(file)
+
+    def __init__(self, file):
+        super().__init__(file)
+        included_files.add(self.file)
+
+    def __str__(self) -> str:
+        return super().__str__()
+
+class IncludeCls(Include):
+
+    regex = re.compile(r"\\documentclass" \
+        + r"(?:\[[^@\]\n]+\])?" \
+        + r"\{([^@#\}\n]+)\}", re.MULTILINE)
+
+    @classmethod
+    def match(cls, file, text: str) -> Iterator[Optional["IncludeCls"]]:
+        for m in super().match(file, text):
+            cls.assert_len(m, 1)
+            yield IncludeCls.include(m[0])
+
+class IncludeSty(Include):
+
+    regex = re.compile(r"\\(?:RequirePackage|usepackage)" \
+        + r"(?:\[[^@\]\n]+\])?" \
+        + r"\{([^@#\}\n]+)\}", re.MULTILINE)
+
+    @classmethod
+    def match(cls, file, text: str) -> Iterator[Optional["IncludeSty"]]:
+        for m in super().match(file, text):
+            cls.assert_len(m, 1)
+            yield IncludeSty.include(m[0])
+
+
+SCAN_PRIORITY_LIST = (IncludeCls, IncludeSty, Command, Environment,)
+
+#  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#  ~~~~~~~~~~~~~~~~~~~~ FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
+#  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def glob_files(in_files: List[File]) -> None:
+    for el in in_files:
+        # directly add IOs
+        if isinstance(el, TextIOBase):
+            files.put(el)
+            continue
+        # we have a string
+        for glob_el in glob.iglob(os.path.expanduser(el), recursive=True):
+            if glob_el.endswith(".log"):
+                # a latex log file, hopefully
+                try:
+                    with open(glob_el, "r", encoding="utf-8") as file:
+                        scan_log_file(file)
+                except UnicodeDecodeError as e:
+                    err(f"Failed to decode file '{glob_el}': {e}")
+            elif any(glob_el.endswith(ext) for ext in LEGAL_FILE_EXTENSIONS):
+                # let file threads deal with extension
+                files.put(glob_el)
+    for _ in range(NUM_THREADS):
+        files.put(None)
+
+def scan_file(io: TextIOBase) -> None:
+    text = io.read()
+    for cls in SCAN_PRIORITY_LIST:
+        for obj in cls.match(io.name, text):
+            if obj is not None:
+                messages.put(obj)
+
+def scan_log_file(io: TextIOBase) -> None:
+    text = io.read()
+    for m in re.finditer(LOG_FILE_REGEX, text):
+        if m is not None and len(m.groups()) >= 1:
+            path, *_ = m.groups()
+            files.put(path)
+
+def file_consumer() -> None:
+    while True:
+        try:
+            el = files.get(block=True, timeout=THREAD_TIMEOUT)
+            if el is None:
+                break
+        except Exception:
+            break
+        try:
+            # either pass TextIOBase instance or open a file
+            if isinstance(el, TextIOBase):
+                scan_file(el)
+            else:
+                if os.path.isfile(el):
+                    with open(el, "r", encoding="utf-8") as file:
+                        scan_file(file)
+        except UnicodeDecodeError as e:
+            err(f"Failed to decode file '{el}': {e}")
+
+def message_consumer() -> None:
+    while True:
+        try:
+            el = messages.get(block=True, timeout=THREAD_TIMEOUT)
+            if el is None:
+                break
+        except Exception:
+            break
+        OUT_IO.write(f"{str(el)}\n")
 
 #  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #  ~~~~~~~~~~~~~~~~~~~~ UTILS ~~~~~~~~~~~~~~~~~~~~
 #  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def err(msg: str, end = "\n") -> None:
-    sys.stderr.write(msg + end)
-
-def norm_path(path: str) -> str:
-    return os.path.relpath(os.path.realpath(os.path.normpath(path)), CWD)
-
 def norm_class(path: str) -> str:
     return os.path.basename(path).split(".")[0]
 
-def include_file(
-        name: str,
-        scanned_files: Set[str],
-        scanned_files_lock: Lock,
-        resQ: Queue) -> bool:
-    with scanned_files_lock:
-        if name not in scanned_files:
-            scanned_files.add(name)
-            resQ.put((
-                INCLUDE,
-                name
-            ))
-            return True
-        else:
-            return False
-
-def file_walk(
-        pathlib_path: pathlib.Path,
-        path: str,
-        scanned_files: Set[str],
-        scanned_files_lock: Lock,
-        resQ: Queue,
-        workQ: Queue) -> Iterator[str]:
-    for file in pathlib_path.glob(path):
-        class_name = norm_class(file.name)
-        if include_file(class_name, scanned_files, scanned_files_lock, resQ):
-            workQ.put(str(file))
-
-def scan_file(
-        file: IO,
-        scanned_files: Set[str],
-        scanned_files_lock: Lock,
-        resQ: Queue) -> None:
-    # read file
-    text = file.read()
-    for regex in REGEXES:
-        re_type, re_re = regex['type'], regex['re']
-        for re_match in re.finditer(re_re, text, re.MULTILINE):
-            # make sure we are not in a comment
-            if re.search(_COMM, text[:re_match.span()[1]]) is not None:
-                continue
-            # put stuff on result queue
-            if re_type is INCLUDE:
-                [include_name] = re_match.groups()
-                include_file(include_name, scanned_files, scanned_files_lock, resQ)
-            elif re_type is COMMAND:
-                [command_name, num_args] = re_match.groups()
-                resQ.put((
-                    COMMAND,
-                    norm_class(file.name),
-                    command_name,
-                    0 if (num_args is None) else num_args,
-                ))
-            elif re_type is ENVIRON:
-                [env_name, num_args] = re_match.groups()
-                resQ.put((
-                    ENVIRON,
-                    norm_class(file.name),
-                    env_name,
-                    0 if (num_args is None) else num_args,
-                ))
-            else:
-                err(f"Match with unknown type found '{regex['type']}': {re_match}")
-
-def scan_file_producer(
-        resQ: Queue,
-        scanned_files: Set[str],
-        scanned_files_lock: Lock,
-        workQ: Queue) -> None:
-    el = workQ.get()
-    while el is not END:
-        try:
-            if len(el) < 1:
-                scan_file(sys.stdin, scanned_files, scanned_files_lock, resQ)
-            else:
-                with open(el, "r", encoding="utf-8") as file:
-                    scan_file(file, scanned_files, scanned_files_lock, resQ)
-        except UnicodeDecodeError as e:
-            err(f"Failed to decode file '{el}': {e}")
-        finally:
-            workQ.task_done()
-        el = workQ.get()
-
-def scan_file_consumer(resQ: Queue) -> None:
-    el = resQ.get()
-    while el is not END:
-        sys.stdout.write(" ".join((str(e) for e in el)))
-        sys.stdout.write("\n")
-        resQ.task_done()
-        el = resQ.get()
+def err(msg: str, end: str="\n") -> None:
+    sys.stderr.write(f"{msg}{end}")
 
 #  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #  ~~~~~~~~~~~~~~~~~~~~ MAIN ~~~~~~~~~~~~~~~~~~~~
 #  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def main(log_mode: bool, paths: List[str]) -> None:
-    # set up queue and thread list
-    workQ = Queue()
-    resQ = Queue()
-    scanned_files = set()
-    scanned_files_lock = Lock()
-    pro_threads = []
-    con_threads = []
 
-    # set up paths for scanning
-    if log_mode:
-        # get log file from tex path
-        log_paths = [(p, p.replace(".tex", ".log")) for p in paths]
-        # load files to scan from log file
-        work_paths = []
-        for tex, log in log_paths:
-            if not (tex.endswith(".tex") and log.endswith(".log")):
-                err(f"Expected '.tex' file but found '{tex}'")
-                sys.exit(1)
-            if not os.path.isfile(log):
-                err(f"No such file '{log}'")
-                sys.exit(1)
-            # add this tex file to work_paths as well
-            work_paths.append(tex)
-            # read file and scan for includes
-            with open(log, "r", encoding="utf-8") as f:
-                matches = re.findall(LOGMODE_INCLUDE_REGEX, f.read(), re.MULTILINE)
-                for match in (m for m in matches if m not in work_paths):
-                    work_paths.append(match)
+def scan_files(in_files: List[File]) -> None:
+    # start up glob thread
+    g_thread = threading.Thread(target=glob_files, args=(in_files,))
+    g_thread.start()
+    # start up file threads
+    f_threads = []
+    for _ in range(NUM_THREADS - 1):
+        f_thread = threading.Thread(target=file_consumer)
+        f_thread.start()
+        f_threads.append(f_thread)
+    # start up message thread
+    m_thread = threading.Thread(target=message_consumer)
+    m_thread.start()
+
+    # wait for glob thread
+    g_thread.join()
+    # stop file threads
+    for f_thread in f_threads:
+        f_thread.join()
+    # stop message thread
+    messages.put(None)
+    m_thread.join()
+
+def main() -> None:
+    # args parsing
+    parser = argparse.ArgumentParser(description=DESC_STR)
+    parser.add_argument(
+        "files",
+        help="the files to scan. If left blank, will read from stdin instead",
+        nargs="*",
+        type=str,
+    )
+    args = parser.parse_args(sys.argv[1:])
+
+    # if no files are given, scan stdin
+    if len(args.files) < 1:
+        scan_files((sys.stdin,))
     else:
-        work_paths = paths
-    work_paths = [norm_path(p) for p in work_paths]
-
-    # start up output
-    output = threading.Thread(target=scan_file_consumer, args=(resQ,))
-    output.start()
-
-    if len(work_paths) > 0:
-        # start up producers
-        pathlib_path = pathlib.Path(CWD)
-        for path in work_paths:
-            if os.path.isdir(path):
-                for path_ext in (os.path.join(path, ext) for ext in EXTENSIONS):
-                    t = threading.Thread(
-                        target=file_walk,
-                        args=(
-                            pathlib_path,
-                            path_ext,
-                            scanned_files,
-                            scanned_files_lock,
-                            resQ,
-                            workQ
-                        ),
-                    )
-                    t.start()
-                    pro_threads.append(t)
-            else:
-                t = threading.Thread(
-                    target=file_walk,
-                    args=(
-                        pathlib_path,
-                        path,
-                        scanned_files,
-                        scanned_files_lock,
-                        resQ,
-                        workQ
-                    ),
-                )
-                t.start()
-                pro_threads.append(t)
-    else:
-        # we only wanna read from stdin it seems
-        workQ.put('')
-
-    # start up consumers
-    for i in range(NUM_CONSUMER_THREADS):
-        t = threading.Thread(
-            target=scan_file_producer,
-            args=(
-                resQ,
-                scanned_files,
-                scanned_files_lock,
-                workQ
-            ),
-        )
-        t.start()
-        con_threads.append(t)
-
-    for t in pro_threads:
-        t.join()
-    for _ in range(NUM_CONSUMER_THREADS):
-        workQ.put(END)
-    for t in con_threads:
-        t.join()
-    resQ.put(END)
-    output.join()
+        scan_files(args.files)
 
 if __name__ == "__main__":
-    if len(sys.argv) <= 1:
-        err(f"""
-Scan files for LaTeX definitions.
-    Usage: {sys.argv[0]} [PATH 1 [PATH 2 [...]]]
-        or {sys.argv[0]} --stdin
-        or {sys.argv[0]} --log [TEX FILE PATH 1 [TEX FILE PATH 2 [...]]]
-        """)
-        sys.exit(1)
-    else:
-        if sys.argv[1].strip().lower() == "--log":
-            if len(sys.argv) <= 2:
-                err("Missing [TEX FILE PATH [...]].")
-                sys.exit(1)
-            main(True, sys.argv[2:])
-        elif sys.argv[1].strip().lower() == "--stdin":
-            main(False, [])
-        else:
-            main(False, sys.argv[1:])
+    main()
 

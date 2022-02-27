@@ -11,11 +11,18 @@ endif
 " Start with LaTeX (ft=tex). This will also define b:did_ftplugin
 runtime ftplugin/tex.vim
 
+if exists('g:vit_enable') && !g:vit_enable
+    finish
+endif
+
 " set cpoptions as per :h usr_41
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:buf = bufname()
+let s:bufname = bufname()
+
+" parse compilation header once every time the ftplugin is loaded
+call vit#ParseCompilationHeader(s:bufname)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ OPTIONS ~~~~~~~~~~~~~~~~~~~~
@@ -29,7 +36,9 @@ let b:undo_ftplugin +=
 
 " ~~~~~~~~~~ definitely important for function of script
 " set option to the above function
-setlocal completefunc=vit#CompleteFunc
+if g:vit_enable_completion
+    setlocal completefunc=vit#CompleteFunc
+endif
 
 " ~~~~~~~~~~ not important for function of script, but a good default
 " set conceal level
@@ -57,11 +66,13 @@ if g:vit_enable_keybinds
     nnoremap <buffer> " :ViTCompile<CR>
     nnoremap <buffer> ! :ViTCompile!<CR>
 
-    " map \ to open autocomplete and write \
-    imap <buffer> <BSlash> \<C-X><C-U>
-    " map vim completion to <ViT><C-Space> and <ViT><Space>
-    execute 'inoremap <buffer> '.g:vit_leader.'<Space> <C-X><C-U>'
-    execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <C-X><C-U>'
+    if g:vit_enable_completion
+        " map \ to open autocomplete and write \
+        imap <buffer> <BSlash> \<C-X><C-U>
+        " map vim completion to <ViT><C-Space> and <ViT><Space>
+        execute 'inoremap <buffer> '.g:vit_leader.'<Space> <C-X><C-U>'
+        execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <C-X><C-U>'
+    endif
 
     " cursor move
     inoremap <buffer> <S-Tab> <C-O>:call vit#SmartMoveCursorRight()<CR>
@@ -72,7 +83,8 @@ endif
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 command -buffer -bang -count=1 ViTCompile
-            \ call vit#Compile(expand('%:p'), expand('%:p:h'), '<bang>', '', <count>)
+            \ noautocmd update
+            \ | call vit#Compile(expand('%:p'), expand('%:p:h'), '<bang>', '', <count>)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ AUTOCOMMANDS ~~~~~~~~~~~~~~~~~~~~
@@ -82,18 +94,22 @@ command -buffer -bang -count=1 ViTCompile
 augroup ViTCompile
     autocmd!
     autocmd BufWritePost <buffer>
-                \ :call vit#Compile(expand('%:p'), expand('%:p:h'), '!', '')
+                \ :call vit#ParseCompilationHeader(bufname())
+                \ | call vit#Compile(expand('%:p'), expand('%:p:h'), '!', '')
     autocmd CursorMoved <buffer> :call vit#CompileSignHover()
 augroup END
 
-" automatic completion-insert detection, triggering
-" the command execution
-augroup ViTCompletionDetection
-    autocmd!
-    autocmd InsertCharPre <buffer>
-                \ :if pumvisible() | call feedkeys("\<C-X>\<C-U>") | endif
-    autocmd CompleteDone <buffer> :call vit#CompletionDetection()
-augroup END
+" automatic completion-insert detection, triggering the command execution
+if g:vit_enable_completion
+    augroup ViTCompletionDetection
+        autocmd!
+        autocmd InsertCharPre <buffer>
+                    \ :if pumvisible()
+                    \ | call feedkeys("\<C-X>\<C-U>")
+                    \ | endif
+        autocmd CompleteDone <buffer> :call vit#CompletionDetection()
+    augroup END
+endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ STATUSLINE ~~~~~~~~~~~~~~~~~~~~
@@ -172,8 +188,17 @@ unlet s:_
 " ~~~~~~~~~~~~~~~~~~~~ SCANNING ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-call vit#ScanFromLog(expand('%:p'), expand('%:p:h'))
-call listener_add({bufnr, ... -> vit#ScanFromBuffer(expand('%:p'), expand('%:p:h'))}, s:buf)
+if g:vit_enable_scanning
+    " initial scans
+    call vit#ScanFromLog(expand('%:p'), expand('%:p:h'))
+    call vit#ScanFromBuffer(expand('%:p'), expand('%:p:h'))
+    " files include themselves, always
+    call vit#Include(s:bufname, s:bufname)
+    " setup change listener
+    call listener_add(
+                \ {bufnr, ... ->
+                \     vit#ScanFromBuffer(expand('%:p'), expand('%:p:h'))}, s:bufname)
+endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~
@@ -183,5 +208,5 @@ call listener_add({bufnr, ... -> vit#ScanFromBuffer(expand('%:p'), expand('%:p:h
 let &cpo = s:save_cpo
 unlet s:save_cpo
 
-unlet s:buf
+unlet s:bufname
 

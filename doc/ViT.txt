@@ -6,19 +6,22 @@ ViT						    *vit* *vit-toc*
 
 1. Introduction					    |vit-intro|
 2. Configuration Options			    |vit-config|
-    2.1  The |g:vit_leader| option
+    2.1  The |g:vit_enable| option
     2.2  The |g:vit_enable_keybinds| option
-    2.3  The |g:vit_compiler| option
-    2.4  The |g:vit_compiler_flags| option
-    2.5  The |g:vit_num_compilations| option
-    2.6  The |g:vit_max_errors| option
-    2.7  The |g:vit_error_regexp| option
-    2.8  The |g:vit_jump_chars| option
-    2.9  The |g:vit_template_remove_on_abort| option
-    2.10 The |g:vit_comment_line| option
-    2.11 The |g:vit_static_commands| option
-    2.12 The |g:vit_includes| option
-    2.13 The |g:vit_autosurround_chars| option
+    2.3  The |g:vit_enable_completion| option
+    2.4  The |g:vit_enable_scanning| option
+    2.5  The |g:vit_leader| option
+    2.6  The |g:vit_compiler| option
+    2.7  The |g:vit_compiler_flags| option
+    2.8  The |g:vit_num_compilations| option
+    2.9  The |g:vit_max_errors| option
+    2.10 The |g:vit_error_regexp| option
+    2.11 The |g:vit_jump_chars| option
+    2.12 The |g:vit_template_remove_on_abort| option
+    2.13 The |g:vit_comment_line| option
+    2.14 The |g:vit_static_commands| option
+    2.15 The |g:vit_includes| option
+    2.16 The |g:vit_autosurround_chars| option
 3. Templates					    |vit-templates|
     3.a Definition of new Templates		    |vit-templates-new|
     3.b Builtin Templates			    |vit-templates-builtin|
@@ -47,7 +50,37 @@ See |vit-license| for licensing details.
 2. Configuration Options			    *vit-config*
 
 ------------------------------------------------------------------------------
-2.1 The *g:vit_leader* option (string)
+2.1 The *g:vit_enable* option (boolean)
+
+Enables or disables the entire plugin.
+Default value: >
+    let g:vit_enable = 1
+<
+------------------------------------------------------------------------------
+2.2 The *g:vit_enable_keybinds* option (boolean)
+
+Enables or disables ViT keybinds.
+Default value: >
+    let g:vit_enable_keybinds = 1
+<
+------------------------------------------------------------------------------
+2.3 The *g:vit_enable_completion* option (boolean)
+
+Enables or disables the completion system, including completion keybinds. See
+|vit-completion|.
+Default value: >
+    let g:vit_enable_completion = 1
+<
+------------------------------------------------------------------------------
+2.4 The *g:vit_enable_scanning* option (boolean)
+
+Enables or disables the scaninng system which is a subset of the completion
+system. See |vit-scanning|.
+Default value: >
+    let g:vit_enable_scanning = 1
+<
+------------------------------------------------------------------------------
+2.5 The *g:vit_leader* option (string)
 
 Sets the leader key for keybinds in ViT. See <ViT> in |vit-templates-builtin|
 for example.
@@ -55,14 +88,7 @@ Default value: >
     let g:vit_leader = '<C-@>'
 <
 ------------------------------------------------------------------------------
-2.2 The *g:vit_enable_keybinds* option (boolean)
-
-Sets whether or not any keybinds are registered by ViT.
-Default value: >
-    let g:vit_enable_keybinds = 1
-<
-------------------------------------------------------------------------------
-2.3 The *g:vit_compiler* option (list of form [string, string])
+2.6 The *g:vit_compiler* option (list of form [string, string])
 
 Sets the command that is used to compile files. The first index is used when
 compiling silently, the second index is used when compiling in a terminal
@@ -71,7 +97,7 @@ Default value: >
     let g:vit_compiler = ['pdflatex', 'pdflatex']
 <
 ------------------------------------------------------------------------------
-2.4 The *g:vit_compiler_flags* option (list of form [string, string])
+2.7 The *g:vit_compiler_flags* option (list of form [string, string])
 
 Sets the flags for the command specified by |g:vit_compiler|. The first index
 is used for compiling silently, the second index is used when compiling in a
@@ -85,7 +111,7 @@ Default value: >
         \ ['-interaction=nonstopmode -file-line-error', '-file-line-error']})
 <
 ------------------------------------------------------------------------------
-2.5 The *g:vit_num_compilations* option (number)
+2.8 The *g:vit_num_compilations* option (number)
 
 Sets the number of compilations that are performed at once when saving a file
 or calling |vit#Compile()|. Note that the command |:ViTCompile| does not use
@@ -94,14 +120,14 @@ Default value: >
     let g:vit_num_compilations = 1
 <
 ------------------------------------------------------------------------------
-2.6 The *g:vit_max_errors* option (number)
+2.9 The *g:vit_max_errors* option (number)
 
 Sets the maximum number of errors that are matched by |g:vit_error_regexp|.
 Default value: >
     let g:vit_max_errors = 10
 <
 ------------------------------------------------------------------------------
-2.7 The *g:vit_error_regexp* option (string)
+2.10 The *g:vit_error_regexp* option (string)
 
 Sets the regular expression that is used to match error output in a .log file
 generated by compiling the current buffer using |g:vit_compiler|. This matches
@@ -113,7 +139,7 @@ Default value: >
 	\ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$'
 <
 ------------------------------------------------------------------------------
-2.8 The *g:vit_jump_chars* option (list of strings)
+2.11 The *g:vit_jump_chars* option (list of strings)
 
 Sets the characters that are considered when using the smart-move right
 feature of ViT (see |i_<S-Tab>|). The priority of the character is the
@@ -122,7 +148,7 @@ Default value: >
     let g:vit_jump_chars = [' ', '(', '[', '{']
 <
 ------------------------------------------------------------------------------
-2.9 The *g:vit_template_remove_on_abort* option (boolean)
+2.12 The *g:vit_template_remove_on_abort* option (boolean)
 
 Sets whether or not templates with template arguments are removed again upon
 aborting them (i.e. leaving an argument blank).
@@ -130,14 +156,14 @@ Default value: >
     let g:vit_template_remove_on_abort = 1
 <
 ------------------------------------------------------------------------------
-2.10 The *g:vit_comment_line* option (string)
+2.13 The *g:vit_comment_line* option (string)
 
 Sets what string to use for full-line comment separators.
 Default value: >
     let g:vit_comment_line = '% '.repeat('~', 70)
 <
 ------------------------------------------------------------------------------
-2.11 The *g:vit_static_commands* option
+2.14 The *g:vit_static_commands* option
 	(dict of string -> list of strings and dicts)
 
 Sets the commands and templates that are accessible to autocompletion in the
@@ -159,7 +185,7 @@ Default value: >
     endtry
 <
 ------------------------------------------------------------------------------
-2.12 The *g:vit_includes* option (list of strings)
+2.15 The *g:vit_includes* option (list of strings)
 
 Sets the currently active 'classes' for the current buffer when used as
 'b:vit_includes' variable, and sets the default active 'classes' for new
@@ -171,7 +197,7 @@ Default value: >
 <
 
 ------------------------------------------------------------------------------
-2.13 The *g:vit_autosurround_chars* option (list of [string, string] lists)
+2.16 The *g:vit_autosurround_chars* option (list of [string, string] lists)
 
 Sets the chars that are automatically surrounded in insert mode. I.e. the
 first index is listened for, and then the second index is inserted after the
@@ -494,6 +520,36 @@ line.
 
 Additionally, each sign will be visible in the |quickfix| list.
 
+						    *vit-compiling-modeline*
+Sometimes, specific files require a different compiler or different
+compilation settings. For instance, LaTeX files with a bibliography need to be
+compiled twice. To make small changes like this easier, it is possible to add
+a modeline comment to a LaTeX file that ViT may consider when calling the
+|:VitCompile| commands.
+
+As an example, let us look at a file called 'test.tex' with the following
+contents: >
+    \documentclass{standalone}
+    % ViT 2x xetex
+    \begin{document}
+	... something that needs two compilations with xetex
+    \end{document}
+As we can see, the modeline can be placed anywhere in the documents with the
+general form '% ViT {n}x {compiler} {args...}', where {n} denotes how many
+times to compile, and {compiler} and {args...} specify the compiler and its
+arguments. {compiler} may be set to '-' in which case the default compiler is
+used -- this way arguments can be modified without modifying the compiler.
+
+Note: It is required that the modeline starts with the string '% ViT',
+although with arbitrary white space.
+
+A pseudo-BNF specification of this modeline looks as follows: >
+    Modeline      ::= ^ .* '%' \s* 'ViT' \s+ <Numcomps>
+                          (\s+ <Compiler> (\s+ <CompilerFlags>)?)? \s* $
+    Numcomps      ::= x\d\+
+    Compiler      ::= '-' | \w+
+    CompilerFlags ::= .+
+<
 						    *:ViTCompile*
 						    *:ViTCompile!*
 :[count]ViTCompile[!]

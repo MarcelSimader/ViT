@@ -9,5 +9,6 @@ if exists("g:vit_did_ftdetect")
 endif
 let g:vit_did_ftdetect = 1
 
-autocmd BufNewFile,BufRead *.tex,*.latex set filetype=latex
+autocmd BufNewFile,BufRead *.tex,*.latex
+            \ if !exists('g:vit_enable') || g:vit_enable | set filetype=latex | endif
 

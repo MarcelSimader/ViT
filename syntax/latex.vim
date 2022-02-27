@@ -4,7 +4,7 @@
 " (c) Marcel Simader 2021
 
 " acts as include guard
-if exists("b:current_syntax")
+if exists("b:current_syntax") || (exists('g:vit_enable') && !g:vit_enable)
     finish
 endif
 

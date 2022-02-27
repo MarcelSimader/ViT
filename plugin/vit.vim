@@ -36,7 +36,7 @@ endif
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " acts as include guard
-if exists('g:vit_did_plugin')
+if exists('g:vit_did_plugin') || (exists('g:vit_enable') && !g:vit_enable)
     finish
 endif
 let g:vit_did_plugin = 1
@@ -62,6 +62,9 @@ endfunction
 
 " TODO: document vit_enable_* options and compiler options
 " -
+call s:Config('g:vit_enable', {-> 1})
+if !g:vit_enable | finish | endif
+
 call s:Config('g:vit_enable_keybinds', {-> 1})
 call s:Config('g:vit_leader', {-> '<C-@>'})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
@@ -77,13 +80,11 @@ call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_error_regexp', {->
             \ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$'})
 
-" unimplemented
 call s:Config('g:vit_enable_completion', {-> 1})
 call s:Config('g:vit_static_commands', {->
             \ #{latex: readfile(findfile('latex_commands.txt', &runtimepath))}}, {})
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
 
-" unimplemented
 call s:Config('g:vit_enable_scanning', {-> 1})
 call s:Config('g:vit_commands', {-> copy(g:vit_static_commands)}, {})
 call s:Config('g:vit_includes', {-> ['latex']})
@@ -108,52 +109,69 @@ call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 "       compilation at all
 function vit#Compile(filepath, pwd, silent = '', flags = '',
             \        numcomp = v:none, currentcomp = v:none)
-    " apply optional arg
-    let numcomp = (a:numcomp is v:none) ? g:vit_num_compilations : a:numcomp
-    let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
-    " abort immediately if we compile 0 or fewer times
+    " tell this buffer it is being compiled
+    let buf = bufname(a:filepath)
+    if exists('b:vit_is_compiling') && b:vit_is_compiling
+        echohl ErrorMsg
+        redraw
+        echomsg 'Buffer "'.buf.'" is already being compiled.'
+        echohl None
+        return
+    endif
+    " set up vars
+    let vit_compiler = s:GetVar(buf, 'vit_compiler')
+    let vit_compiler_flags = s:GetVar(buf, 'vit_compiler_flags')
+    let numcomp = (a:numcomp is v:none)
+                \ ? s:GetVar(buf, 'vit_num_compilations')
+                \ : a:numcomp
     if numcomp < 1
         return
     endif
-    redraw | echo 'Compiling No. '.currentcomp.' of '.numcomp.'...'
-    " save file
-    execute 'update '.a:filepath
+    let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
     " run compilation
+    redraw | echo 'Compiling No. '.currentcomp.' of '.numcomp.'...'
     if a:silent == '!'
         " run background job
-        if len(g:vit_compiler) < 1
+        if len(vit_compiler) < 1
             echohl ErrorMsg
             redraw
             echomsg 'No compiler defined for background process compilation in ViT: '
-                \ .string(g:vit_compiler).' '.string(g:vit_compiler_flags)
+                \ .string(vit_compiler).' '.string(vit_compiler_flags)
             echohl None
             return
         endif
         let s:vit_compile_currjob = job_start(
-            \ join([g:vit_compiler[0], g:vit_compiler_flags[0],
+            \ join([vit_compiler[0], vit_compiler_flags[0],
             \       a:flags, a:filepath], ' '),
             \ #{exit_cb: {_, exit ->
             \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
             \                           numcomp, currentcomp)},
             \   cwd: a:pwd})
-    else
+    elseif a:silent == ''
         " open terminal
-        if len(g:vit_compiler) < 2
+        if len(vit_compiler) < 2
             echohl ErrorMsg
             redraw
             echomsg 'No compiler defined for terminal compilation in ViT: '
-                \ .string(g:vit_compiler).' '.string(g:vit_compiler_flags)
+                \ .string(vit_compiler).' '.string(vit_compiler_flags)
             echohl None
+            return
         endif
         :vertical :belowright call term_start(
-            \ join([g:vit_compiler[1], g:vit_compiler_flags[1],
+            \ join([vit_compiler[1], vit_compiler_flags[1],
             \       a:flags, a:filepath], ' '),
             \ #{term_finish: 'close',
             \   exit_cb: {_, exit ->
             \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
             \                           numcomp, currentcomp)},
             \   cwd: a:pwd})
+    else
+        echohl ErrorMsg
+        redraw
+        echomsg 'Unknown compilation option "'.a:silent.'" for "silent"'
+        return
     endif
+    let b:vit_is_compiling = 1
 endfunction
 
 if g:vit_max_errors > 0
@@ -161,6 +179,8 @@ if g:vit_max_errors > 0
 endif
 " TODO: document the arguments of this function as it got quite complex
 function vit#CompileCallback(exit, filepath, pwd, silent, flags, numcomp, currentcomp)
+    " mark compilation as done
+    let b:vit_is_compiling = 0
     " check if we still want to compile or not
     if a:currentcomp < a:numcomp
         " recursively call and go no farther in callback
@@ -170,7 +190,9 @@ function vit#CompileCallback(exit, filepath, pwd, silent, flags, numcomp, curren
     endif
     let buf = bufnr(a:filepath)
     " call scanning
-    call vit#ScanFromLog(a:filepath, a:pwd)
+    if g:vit_enable_scanning
+        call vit#ScanFromLog(a:filepath, a:pwd)
+    endif
     " remove old signs
     if g:vit_max_errors > 0
         call setbufvar(buf, 'vit_signs', {})
@@ -357,7 +379,14 @@ function vit#NewCompletionOption(name, class, command = '', static = 0)
     let normed = s:NormClass(a:class)
     let vit_commands = a:static ? g:vit_static_commands : g:vit_commands
     if has_key(vit_commands, normed)
-        let vit_commands[normed] += [item]
+        let l = vit_commands[normed]
+        " check if something similar exists and remove that so we do not
+        " end up with '\abc' and '\abc{' simultaneously
+        for suffix in ['', '[', '{']
+            let idx = index(l, a:name.suffix, 0, 0)
+            if idx != -1 | call remove(l, idx) | endif
+        endfor
+        let l += [item]
     else
         let vit_commands[normed] = [item]
     endif
@@ -384,6 +413,7 @@ function vit#ResetInclude(buf)
 endfunction
 
 function vit#GetCompletionOptions(buf)
+    if !g:vit_enable_completion | return [] | endif
     let vit_includes = s:GetVar(a:buf, 'vit_includes')
     return flattennew(values(
                 \ filter(g:vit_commands, 'index(vit_includes, v:key) != -1'),
@@ -444,7 +474,7 @@ endfunction
 " Scans the current buffer for changes in definitions. This operations will not delete
 " any information and only consider additions.
 function vit#ScanFromBuffer(buf, cwd)
-    let g:vit_scan_currjob = job_start(g:vit_scan_prg.' --stdin',
+    let g:vit_scan_currjob = job_start(g:vit_scan_prg,
                 \ {'out_cb': {_, msg ->
                         \ vit#ScanFileCallback(a:buf, msg, 1, bufname(a:buf))},
                 \  'in_io': 'buffer', 'in_buf': bufnr(a:buf),
@@ -456,7 +486,7 @@ endfunction
 " files in the global class cache.
 function vit#ScanFromLog(buf, cwd)
     call vit#ResetInclude(a:buf)
-    let g:vit_scan_currjob = job_start(g:vit_scan_prg.' --log '.bufname(a:buf),
+    let g:vit_scan_currjob = job_start(g:vit_scan_prg.' '.bufname(a:buf),
                 \ {'out_cb': {_, msg ->
                         \ vit#ScanFileCallback(a:buf, msg, 0)},
                 \  'cwd': a:cwd})
@@ -478,7 +508,7 @@ function vit#ScanFileCallback(buf, msg, noremove, stdinname = '') abort
         let [cmdname, numargs; _] = rest
         call vit#NewCompletionOption((numargs > 0) ? cmdname.'{' : cmdname, class)
     elseif type == 'environ'
-        let [cmdname, numargs; _] = rest
+        let [cmdname; _] = rest
         call vit#NewTemplate(substitute('ViT'.cmdname, '\*\|#', '_ill', 'g'), class,
                     \ '', 0, 1, [1, 5], 4,
                     \ ['\begin{'.cmdname.'}'], ['\end{'.cmdname.'}'])
@@ -539,5 +569,65 @@ function vit#CurrentTeXEnv()
     " now we get '\begin{envname}'
     let envname = get(matchlist(getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1), 1, '')
     return envname
+endfunction
+
+" Sets the vit_compiler, and vit_num_compilations variable based on the following syntax:
+"
+"     Modeline      ::= ^ .* '%' \s* 'ViT' \s+ <Numcomps>
+"                           (\s+ <Compiler> (\s+ <CompilerFlags>)?)? \s* $
+"     Numcomps      ::= x\d\+
+"     Compiler      ::= '-' | \w+
+"     CompilerFlags ::= .+
+"
+" For instance ' Something Here % ViT  x2 pdflatex -file-line-error' would be interpreted
+" as having the compilers ['pdflatex', 'pdflatex'] with the arguments ['-file-line-error,
+" '-file-line-error'] and 2 compilations. The text ' Something Here ' is fully ignored.
+" When <Compiler> is set to '-', it assumes the global value. When no <Compiler> or
+" <CompilerFlags> are found, they assume the global value.
+"
+" A common use case is '% ViT x2', where we instruct ViT to compile twice, but keep the
+" same compiler as configured in g:vit_compiler.
+function vit#ParseCompilationHeader(buf, numlines = 15)
+    " reset old vars
+    call s:ResetVar(a:buf, 'vit_num_compilations')
+    call s:ResetVar(a:buf, 'vit_compiler')
+    call s:ResetVar(a:buf, 'vit_compiler_flags')
+    " parse
+    let lines = getbufline(a:buf, 0, a:numlines)
+    for line in lines
+        let match = matchlist(line,
+                    \ '^.*%\s*ViT\s\+'
+                    \ .'x\(\d\+\)'
+                    \ .'\%(\s\+\(-\|\%(\w\+\)\)\%(\s\+\(.\+\)\)\=\)\='
+                    \ .'\s*$')
+        if !empty(match)
+            let [numcomps, comp, compflags] = [match[1], match[2], trim(match[3])]
+            " num compilations
+            if !empty(numcomps)
+                let b:vit_num_compilations = str2nr(numcomps)
+            endif
+            " compiler
+            let vit_compiler = s:GetVar(a:buf, 'vit_compiler')
+            if !empty(comp) && comp != '-'
+                for i in range(2)
+                    let vit_compiler[i] = comp
+                endfor
+            endif
+            " compiler flags
+            let vit_compiler_flags = s:GetVar(a:buf, 'vit_compiler_flags')
+            if !empty(compflags)
+                for i in range(2)
+                    let vit_compiler_flags[i] = compflags
+                endfor
+            endif
+            " message
+            redraw
+            echo 'Found ViT modeline, compiling '
+                \ .s:GetVar(a:buf, 'vit_num_compilations').' times '
+                \ .'with '.string(vit_compiler).' as compiler with flags '
+                \ .string(vit_compiler_flags)
+            break
+        endif
+    endfor
 endfunction
 

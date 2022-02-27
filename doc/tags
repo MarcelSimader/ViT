@@ -6,7 +6,10 @@ g:vit_autosurround_chars	ViT.txt	/*g:vit_autosurround_chars*
 g:vit_comment_line	ViT.txt	/*g:vit_comment_line*
 g:vit_compiler	ViT.txt	/*g:vit_compiler*
 g:vit_compiler_flags	ViT.txt	/*g:vit_compiler_flags*
+g:vit_enable	ViT.txt	/*g:vit_enable*
+g:vit_enable_completion	ViT.txt	/*g:vit_enable_completion*
 g:vit_enable_keybinds	ViT.txt	/*g:vit_enable_keybinds*
+g:vit_enable_scanning	ViT.txt	/*g:vit_enable_scanning*
 g:vit_error_regexp	ViT.txt	/*g:vit_error_regexp*
 g:vit_includes	ViT.txt	/*g:vit_includes*
 g:vit_jump_chars	ViT.txt	/*g:vit_jump_chars*
@@ -27,6 +30,7 @@ vit-align	ViT.txt	/*vit-align*
 vit-autosurround	ViT.txt	/*vit-autosurround*
 vit-center	ViT.txt	/*vit-center*
 vit-compiling	ViT.txt	/*vit-compiling*
+vit-compiling-modeline	ViT.txt	/*vit-compiling-modeline*
 vit-compiling-signs	ViT.txt	/*vit-compiling-signs*
 vit-completion	ViT.txt	/*vit-completion*
 vit-completion-start	ViT.txt	/*vit-completion-start*

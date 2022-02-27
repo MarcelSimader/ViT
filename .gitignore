@@ -1,6 +1,6 @@
 # ignore local test files
-test.tex
-test1.tex
+test.*
+test1.*
 
 # ignore transpiling steps
 *.c
