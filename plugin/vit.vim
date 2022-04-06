@@ -142,7 +142,7 @@ function vit#Compile(filepath, pwd, silent = '', flags = '',
         endif
         let s:vit_compile_currjob = job_start(
             \ join([vit_compiler[0], vit_compiler_flags[0],
-            \       a:flags, a:filepath], ' '),
+            \       a:flags, fnameescape(a:filepath)], ' '),
             \ #{exit_cb: {_, exit ->
             \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
             \                           numcomp, currentcomp)},
@@ -159,7 +159,7 @@ function vit#Compile(filepath, pwd, silent = '', flags = '',
         endif
         :vertical :belowright call term_start(
             \ join([vit_compiler[1], vit_compiler_flags[1],
-            \       a:flags, a:filepath], ' '),
+            \       a:flags, fnameescape(a:filepath)], ' '),
             \ #{term_finish: 'close',
             \   exit_cb: {_, exit ->
             \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
