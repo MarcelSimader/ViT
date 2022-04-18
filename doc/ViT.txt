@@ -534,21 +534,45 @@ contents: >
     \begin{document}
 	... something that needs two compilations with xetex
     \end{document}
-As we can see, the modeline can be placed anywhere in the documents with the
-general form '% ViT {n}x {compiler} {args...}', where {n} denotes how many
-times to compile, and {compiler} and {args...} specify the compiler and its
-arguments. {compiler} may be set to '-' in which case the default compiler is
-used -- this way arguments can be modified without modifying the compiler.
+As we can see, the compilation-type modeline can be placed anywhere in the
+documents with the general form '% ViT {n}x {compiler} {args...}', where {n}
+denotes how many times to compile, and {compiler} and {args...} specify the
+compiler and its arguments. {compiler} may be set to '-' in which case the
+default compiler is used -- this way arguments can be modified without
+modifying the compiler.
+
+Here is another example using both the compilation-type, and the
+included-in-type modeline: >
+    \documentclass{standalone}
+    % ViT 2x
+    % ViT included in other_file.tex
+    \begin{document}
+	... something that needs two compilations, but
+	    starting at 'other_file.tex'
+    \end{document}
+This type of modeline follows the general form '% ViT included in {file}',
+where {file} is simply another file which has the current file included. ViT
+will traverse this file-tree starting at the current buffer upwards to reach
+the root file. This is where the compilation will finally take place. Any
+settins set lower in the tree will be applied first and override ones higher
+inthe tree.
 
 Note: It is required that the modeline starts with the string '% ViT',
-although with arbitrary white space.
+although with arbitrary white space. Modeline types CANNOT be duplicated and
+will cause an error (e.g. defining two different compilers).
 
 A pseudo-BNF specification of this modeline looks as follows: >
-    Modeline      ::= ^ .* '%' \s* 'ViT' \s+ <Numcomps>
-                          (\s+ <Compiler> (\s+ <CompilerFlags>)?)? \s* $
-    Numcomps      ::= x\d\+
-    Compiler      ::= '-' | \w+
-    CompilerFlags ::= .+
+    Modeline      ::= ^ .* '%' \s* 'ViT' \s+
+			( <Compilation> | <Included> ) \s* $ ;
+
+    Included      ::= 'included in' \s+ <File> ;
+    File          ::= .+ ;
+
+    Compilation   ::= <Numcomps> ( \s+ <Compiler>
+			( \s+ <CompilerFlags> )? )? ;
+    Numcomps      ::= x\d\+ ;
+    Compiler      ::= '-' | \w+ ;
+    CompilerFlags ::= .+ ;
 <
 						    *:ViTCompile*
 						    *:ViTCompile!*

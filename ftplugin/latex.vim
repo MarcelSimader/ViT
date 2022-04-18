@@ -22,7 +22,7 @@ set cpo&vim
 let s:bufname = bufname()
 
 " parse compilation header once every time the ftplugin is loaded
-call vit#ParseCompilationHeader(s:bufname)
+call vit#ParseModeline(s:bufname)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ OPTIONS ~~~~~~~~~~~~~~~~~~~~
@@ -84,7 +84,8 @@ endif
 
 command -buffer -bang -count=1 ViTCompile
             \ noautocmd update
-            \ | call vit#Compile(expand('%:p'), expand('%:p:h'), '<bang>', '', <count>)
+            \ | call vit#ParseModeline(bufname())
+            \ | call vit#Compile(bufname(), '<bang>', '', <count>)
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ AUTOCOMMANDS ~~~~~~~~~~~~~~~~~~~~
@@ -93,9 +94,7 @@ command -buffer -bang -count=1 ViTCompile
 " auto compiling
 augroup ViTCompile
     autocmd!
-    autocmd BufWritePost <buffer>
-                \ :call vit#ParseCompilationHeader(bufname())
-                \ | call vit#Compile(expand('%:p'), expand('%:p:h'), '!', '')
+    autocmd BufWritePost <buffer> :ViTCompile!
     autocmd CursorMoved <buffer> :call vit#CompileSignHover()
 augroup END
 

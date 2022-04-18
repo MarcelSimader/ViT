@@ -1,6 +1,5 @@
 # ignore local test files
-test.*
-test1.*
+test*.*
 
 # ignore transpiling steps
 *.c

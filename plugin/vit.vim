@@ -90,6 +90,7 @@ call s:Config('g:vit_commands', {-> copy(g:vit_static_commands)}, {})
 call s:Config('g:vit_includes', {-> ['latex']})
 
 " TODO: maybe document this
+call s:Config('g:vit_included_in', {-> []})
 call s:Config('g:vit_scan_prg', {-> findfile('bin/scan_latex_sources', &runtimepath)})
 call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 
@@ -99,34 +100,34 @@ call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 
 " Compiles the contents of a file using the configured LaTeX compiler.
 " Arguments:
-"   filepath, the path to the file
-"   pwd, the path to the working directory (should be folder of
-"       'filepath' resides in)
+"   buf, the buffer to take settings from to figure out what to compile
 "   [silent,] can be '!' to be executed as background job, otherwise
 "       open a new terminal window
 "   [flags,] can be set to pass flags to the compiler
 "   [numcomp,] indicates how many times to compile the file, 0 indicates no
 "       compilation at all
-function vit#Compile(filepath, pwd, silent = '', flags = '',
-            \        numcomp = v:none, currentcomp = v:none)
-    " tell this buffer it is being compiled
-    let buf = bufname(a:filepath)
+function vit#Compile(buf, silent = '', flags = '', numcomp = v:none, currentcomp = v:none)
+    " figure out if we should abort
     if exists('b:vit_is_compiling') && b:vit_is_compiling
         echohl ErrorMsg
         redraw
-        echomsg 'Buffer "'.buf.'" is already being compiled.'
+        echomsg 'Buffer "'.a:buf.'" is already being compiled.'
         echohl None
         return
     endif
-    " set up vars
-    let vit_compiler = s:GetVar(buf, 'vit_compiler')
-    let vit_compiler_flags = s:GetVar(buf, 'vit_compiler_flags')
+    " read buffer vars
+    let vit_included_in = s:GetVar(a:buf, 'vit_included_in')
+    let vit_compiler = s:GetVar(a:buf, 'vit_compiler')
+    let vit_compiler_flags = s:GetVar(a:buf, 'vit_compiler_flags')
+    let pwd = getcwd()
+    " figure out vars
+    let filepath = empty(vit_included_in)
+                \ ? findfile(a:buf, pwd)
+                \ : vit_included_in[-1]
     let numcomp = (a:numcomp is v:none)
-                \ ? s:GetVar(buf, 'vit_num_compilations')
+                \ ? s:GetVar(a:buf, 'vit_num_compilations')
                 \ : a:numcomp
-    if numcomp < 1
-        return
-    endif
+    if numcomp < 1 | return | endif
     let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
     " run compilation
     redraw | echo 'Compiling No. '.currentcomp.' of '.numcomp.'...'
@@ -142,11 +143,11 @@ function vit#Compile(filepath, pwd, silent = '', flags = '',
         endif
         let s:vit_compile_currjob = job_start(
             \ join([vit_compiler[0], vit_compiler_flags[0],
-            \       a:flags, fnameescape(a:filepath)], ' '),
+            \       a:flags, fnameescape(filepath)], ' '),
             \ #{exit_cb: {_, exit ->
-            \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
+            \       vit#CompileCallback(exit, filepath, pwd, a:silent, a:flags,
             \                           numcomp, currentcomp)},
-            \   cwd: a:pwd})
+            \   cwd: pwd})
     elseif a:silent == ''
         " open terminal
         if len(vit_compiler) < 2
@@ -159,18 +160,19 @@ function vit#Compile(filepath, pwd, silent = '', flags = '',
         endif
         :vertical :belowright call term_start(
             \ join([vit_compiler[1], vit_compiler_flags[1],
-            \       a:flags, fnameescape(a:filepath)], ' '),
+            \       a:flags, fnameescape(filepath)], ' '),
             \ #{term_finish: 'close',
             \   exit_cb: {_, exit ->
-            \       vit#CompileCallback(exit, a:filepath, a:pwd, a:silent, a:flags,
+            \       vit#CompileCallback(exit, filepath, pwd, a:silent, a:flags,
             \                           numcomp, currentcomp)},
-            \   cwd: a:pwd})
+            \   cwd: pwd})
     else
         echohl ErrorMsg
         redraw
         echomsg 'Unknown compilation option "'.a:silent.'" for "silent"'
         return
     endif
+    " tell this buffer it is being compiled
     let b:vit_is_compiling = 1
 endfunction
 
@@ -571,13 +573,18 @@ function vit#CurrentTeXEnv()
     return envname
 endfunction
 
-" Sets the vit_compiler, and vit_num_compilations variable based on the following syntax:
+" Sets the vit_compiler, vit_num_compilations variable, and what larger file tree this
+" file is included in based on the following syntax:
 "
-"     Modeline      ::= ^ .* '%' \s* 'ViT' \s+ <Numcomps>
-"                           (\s+ <Compiler> (\s+ <CompilerFlags>)?)? \s* $
-"     Numcomps      ::= x\d\+
-"     Compiler      ::= '-' | \w+
-"     CompilerFlags ::= .+
+"     Modeline      ::= ^ .* '%' \s* 'ViT' \s+ ( <Compilation> | <Included> ) \s* $ ;
+"
+"     Included      ::= 'included in' \s+ <File> ;
+"     File          ::= .+ ;
+"
+"     Compilation   ::= <Numcomps> ( \s+ <Compiler> ( \s+ <CompilerFlags> )? )? ;
+"     Numcomps      ::= x\d\+ ;
+"     Compiler      ::= '-' | \w+ ;
+"     CompilerFlags ::= .+ ;
 "
 " For instance ' Something Here % ViT  x2 pdflatex -file-line-error' would be interpreted
 " as having the compilers ['pdflatex', 'pdflatex'] with the arguments ['-file-line-error,
@@ -585,22 +592,105 @@ endfunction
 " When <Compiler> is set to '-', it assumes the global value. When no <Compiler> or
 " <CompilerFlags> are found, they assume the global value.
 "
+" Multiple modelines can be put in the first lines of the document, so one might set both
+" the compilation flags and the included-in flag by doing the following:
+"
+"   % ViT included in ../main.tex
+"   % ViT x2 xetex -etex
+"
+" A file tree is traversed bottom-up, so the compilation runs once on the top of the tree
+" but the settings from the lower files override the 'higher' settings.
+"
 " A common use case is '% ViT x2', where we instruct ViT to compile twice, but keep the
 " same compiler as configured in g:vit_compiler.
-function vit#ParseCompilationHeader(buf, numlines = 15)
-    " reset old vars
-    call s:ResetVar(a:buf, 'vit_num_compilations')
+"
+" Arguments:
+"   buf, the buffer to set options in (most likely current buffer) and start parsing at
+"   [numlines,] how many lines to parse before giving up, defaults to 15
+"   [maxdepth,] the number of files the buffer is included in to traverse before giving
+"       up, defaults to 8
+function vit#ParseModeline(buf, numlines = 15, maxdepth = 8)
+    " reset variables so we don't keep adding onto them when we reload the modelines
+    call s:ResetVar(a:buf, 'vit_included_in')
     call s:ResetVar(a:buf, 'vit_compiler')
     call s:ResetVar(a:buf, 'vit_compiler_flags')
-    " parse
-    let lines = getbufline(a:buf, 0, a:numlines)
-    for line in lines
+    call s:ResetVar(a:buf, 'vit_num_compilations')
+    " call the work-horse
+    call s:ParseModeline(a:buf, bufname(a:buf), 0, a:numlines, a:maxdepth)
+endfunction
+
+" Recursive work-horse of vit#ParseModeline().
+" Arguments:
+"   buf, the buf to set options in (most likely current buffer)
+"   file, the file to read lines from
+"   depth, the current recursive depth
+"   numlines, the number of lines to read from 'file'
+"   maxdepth, the number of recursive calls to perform before giving up
+function s:ParseModeline(buf, file, depth, numlines, maxdepth)
+    " depth-test
+    if a:depth >= a:maxdepth | return | endif
+    " convenience variables
+    let [modeline_pre, modeline_suf] = ['^.*%\s*ViT\s\+', '\s*$']
+    " make sure we only read each header once
+    let [read_compile, read_included_in] = [0, 0]
+    " read in text-mode so ''
+    for line in readfile(a:file, '', a:numlines)
+        " ~~~~~~~~~~~~~~~~~~~~ up until here pre-order traversal ~~~~~~~~~~~~~~~~~~~~
+        " ~~~~~~~~~~ included-in modeline
         let match = matchlist(line,
-                    \ '^.*%\s*ViT\s\+'
+                    \ modeline_pre
+                    \ .'included in\s\+\(.\+\)'
+                    \ .modeline_suf)
+        if !empty(match)
+            if read_included_in != 0
+                echohl ErrorMsg
+                echomsg 'Found duplicated included-in ViT modeline in line ('.a:file.'):'
+                echomsg '  '.line
+                echohl None
+                break
+            else
+                let read_included_in += 1
+            endif
+            let includedin = match[1]
+            " file
+            let vit_included_in = s:GetVar(a:buf, 'vit_included_in')
+            if !empty(includedin)
+                " get actual path of the file
+                let includedin_search = findfile(includedin, '.')
+                " if it is empty now, the file does not exist
+                if empty(includedin_search)
+                    echohl ErrorMsg
+                    echomsg 'No such file "'.includedin.'" found for modeline in "'
+                                \ .a:file.'"'
+                    echohl None
+                    break
+                else
+                    let vit_included_in += [includedin_search]
+                    " parse modeline of includedin file
+                    call s:ParseModeline(a:buf, includedin_search, a:depth + 1,
+                                \ a:numlines, a:maxdepth)
+                endif
+            endif
+            " skip to next line
+            continue
+        endif
+        " ~~~~~~~~~~~~~~~~~~~~ now post-order traversal ~~~~~~~~~~~~~~~~~~~~
+        " ~~~~~~~~~~ compilation modeline
+        let match = matchlist(line,
+                    \ modeline_pre
                     \ .'x\(\d\+\)'
                     \ .'\%(\s\+\(-\|\%(\w\+\)\)\%(\s\+\(.\+\)\)\=\)\='
-                    \ .'\s*$')
+                    \ .modeline_suf)
         if !empty(match)
+            if read_compile != 0
+                echohl ErrorMsg
+                echomsg 'Found duplicated compiler ViT modeline in line ('.a:file.'):'
+                echomsg '  '.line
+                echohl None
+                break
+            else
+                let read_compile += 1
+            endif
             let [numcomps, comp, compflags] = [match[1], match[2], trim(match[3])]
             " num compilations
             if !empty(numcomps)
@@ -620,13 +710,8 @@ function vit#ParseCompilationHeader(buf, numlines = 15)
                     let vit_compiler_flags[i] = compflags
                 endfor
             endif
-            " message
-            redraw
-            echo 'Found ViT modeline, compiling '
-                \ .s:GetVar(a:buf, 'vit_num_compilations').' times '
-                \ .'with '.string(vit_compiler).' as compiler with flags '
-                \ .string(vit_compiler_flags)
-            break
+            " skip to next line
+            continue
         endif
     endfor
 endfunction
