@@ -85,30 +85,31 @@ endif
 command -buffer -bang -count=1 ViTCompile
             \ noautocmd update
             \ | call vit#ParseModeline(bufname())
-            \ | call vit#Compile(bufname(), '<bang>', '', <count>)
+            \ | call vit#Compile(bufname(), '<bang>', {'numcomps': <count>})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ AUTOCOMMANDS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-" auto compiling
-augroup ViTCompile
+augroup ViT
     autocmd!
-    autocmd BufWritePost <buffer> :ViTCompile!
-    autocmd CursorMoved <buffer> :call vit#CompileSignHover()
-augroup END
 
-" automatic completion-insert detection, triggering the command execution
-if g:vit_enable_completion
-    augroup ViTCompletionDetection
-        autocmd!
+    " compiling and scanning
+    autocmd BufWritePost <buffer> :ViTCompile!
+    " compile hovering
+    autocmd CursorMoved <buffer> :call vit#CompileSignHover()
+
+    if g:vit_enable_completion
+        " hack for completion popup menu
         autocmd InsertCharPre <buffer>
                     \ :if pumvisible()
                     \ | call feedkeys("\<C-X>\<C-U>")
                     \ | endif
+        " automatic completion-insert detectiontriggering the command execution
         autocmd CompleteDone <buffer> :call vit#CompletionDetection()
-    augroup END
-endif
+    endif
+
+augroup END
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ STATUSLINE ~~~~~~~~~~~~~~~~~~~~
@@ -188,15 +189,10 @@ unlet s:_
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 if g:vit_enable_scanning
-    " initial scans
-    call vit#ScanFromLog(expand('%:p'), expand('%:p:h'))
-    call vit#ScanFromBuffer(expand('%:p'), expand('%:p:h'))
-    " files include themselves, always
-    call vit#Include(s:bufname, s:bufname)
+    " initial full scan
+    call vit#FullScan(s:bufname)
     " setup change listener
-    call listener_add(
-                \ {bufnr, ... ->
-                \     vit#ScanFromBuffer(expand('%:p'), expand('%:p:h'))}, s:bufname)
+    call listener_add({bufnr, ... -> vit#ScanFromBuffer(bufnr)}, s:bufname)
 endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
