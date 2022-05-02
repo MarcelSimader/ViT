@@ -1,8 +1,9 @@
 # ignore local test files
+test/
 test*.*
 
-# ignore transpiling steps
-*.c
+# ignore removal script
+remove_tex_outputs.sh
 
 # ignore all custom 'user' scripts
 user/

@@ -60,39 +60,37 @@ function s:Config(name, value, default = v:none)
     endtry
 endfunction
 
-" TODO: document vit_enable_* options and compiler options
-" -
 call s:Config('g:vit_enable', {-> 1})
 if !g:vit_enable | finish | endif
-
 call s:Config('g:vit_enable_keybinds', {-> 1})
+call s:Config('g:vit_enable_commands', {-> 1})
 call s:Config('g:vit_leader', {-> '<C-@>'})
+call s:Config('g:vit_compiler', {-> {
+	    \ 'compiler': 'pdflatex',
+	    \ 'flags': '-interaction=nonstopmode -file-line-error %',
+            \ 'errregex': '^\s*\(.\{-}\)\s*:\s*\(\d\+\)\s*:\s*\(.\{-}\)\s*$',
+	    \ 'numcomps': 1,
+            \ }})
+call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
+call s:Config('g:vit_template_remove_on_abort', {-> 1})
+call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 call s:Config('g:vit_autosurround_chars', {->
             \ [['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']]})
-
-call s:Config('g:vit_num_compilations', {-> 1})
-call s:Config('g:vit_compiler', {-> ['pdflatex', 'pdflatex']})
-call s:Config('g:vit_compiler_flags', {->
-            \ ['-interaction=nonstopmode -file-line-error', '-file-line-error']})
-
-call s:Config('g:vit_max_errors', {-> 10})
-call s:Config('g:vit_error_regexp', {->
-            \ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$'})
-
-call s:Config('g:vit_enable_completion', {-> 1})
-call s:Config('g:vit_static_commands', {->
-            \ #{latex: readfile(findfile('latex_commands.txt', &runtimepath))}}, {})
-call s:Config('g:vit_template_remove_on_abort', {-> 1})
-
-call s:Config('g:vit_enable_scanning', {-> 1})
-call s:Config('g:vit_commands', {-> copy(g:vit_static_commands)}, {})
-call s:Config('g:vit_includes', {-> ['latex']})
+call s:Config('g:vit_compile_on_write', {-> 0})
 
 " TODO: maybe document this
-call s:Config('g:vit_included_in', {-> []})
-call s:Config('g:vit_scan_prg', {-> findfile('bin/scan_latex_sources', &runtimepath)})
-call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
+call s:Config('g:vit_signs', {-> {}})
+call s:Config('g:vit_num_errors', {-> 0})
+call s:Config('g:vit_is_compiling', {-> 0})
+call s:Config('g:vit_compilation_queued', {-> 0})
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ SIGNS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+highlight ViTErrorSign ctermfg=Red ctermbg=DarkRed
+call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
@@ -102,173 +100,166 @@ call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
 " Arguments:
 "   buf, the buffer to take settings from to figure out what to compile
 "   [silent,] can be '!' to be executed as background job, otherwise
-"       open a new terminal window
-"   [flags,] can be set to pass flags to the compiler
-"   [numcomp,] indicates how many times to compile the file, 0 indicates no
-"       compilation at all
-function vit#Compile(buf, silent = '', flags = '', numcomp = v:none, currentcomp = v:none)
-    " figure out if we should abort
-    if exists('b:vit_is_compiling') && b:vit_is_compiling
+"       open a new terminal window, defaults to ''
+"   [compiler,] compiler dict described in ':h g:vit_compiler', defaults to {},
+"       each key that is not set is set to the value of b:vit_compiler, which is initially
+"       set to the global value g:vit_compiler
+"   [pwd,] manually sets the working path, defaults to current working directory
+"   [currentcomp,] need not be set by user, internal argument, defaults to v:none
+function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
+            \ currentcomp = v:none)
+    if a:currentcomp is v:none
+        call vit#ParseModeline(a:buf)
+    endif
+    " set up variables
+    let pwd = (a:pwd is v:none) ? getcwd() : a:pwd
+    let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
+    let filepath = vit#GetRootFile(a:buf)
+    let firstcall = a:currentcomp is v:none
+
+    " get from arguments first, then global value, finally resort to v:none
+    let cdict = {}
+    function! SetDictITE(key) closure
+        let cdict[a:key] = get(a:compiler, a:key,
+                    \ get(s:GetVar(a:buf, 'vit_compiler'), a:key, v:none))
+    endfunction
+    call SetDictITE('compiler')
+    call SetDictITE('flags')
+    call SetDictITE('errregex')
+    call SetDictITE('numcomps')
+
+    " make sure compiler is complete
+    if cdict['compiler'] is v:none || cdict['flags'] is v:none
+                \ || cdict['errregex'] is v:none || cdict['numcomps'] is v:none
         echohl ErrorMsg
-        redraw
-        echomsg 'Buffer "'.a:buf.'" is already being compiled.'
+        echomsg 'ViT compiler dictionary '.string(cdict).' is incomplete! '
+                    \ .'See ":h g:vit_compiler".'
         echohl None
         return
     endif
-    " read buffer vars
-    let vit_included_in = s:GetVar(a:buf, 'vit_included_in')
-    let vit_compiler = s:GetVar(a:buf, 'vit_compiler')
-    let vit_compiler_flags = s:GetVar(a:buf, 'vit_compiler_flags')
-    let pwd = getcwd()
-    " figure out vars
-    let filepath = empty(vit_included_in)
-                \ ? findfile(a:buf, pwd)
-                \ : vit_included_in[-1]
-    let numcomp = (a:numcomp is v:none)
-                \ ? s:GetVar(a:buf, 'vit_num_compilations')
-                \ : a:numcomp
-    if numcomp < 1 | return | endif
-    let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
-    " run compilation
-    redraw | echo 'Compiling No. '.currentcomp.' of '.numcomp.'...'
-    if a:silent == '!'
-        " run background job
-        if len(vit_compiler) < 1
-            echohl ErrorMsg
-            redraw
-            echomsg 'No compiler defined for background process compilation in ViT: '
-                \ .string(vit_compiler).' '.string(vit_compiler_flags)
-            echohl None
-            return
-        endif
-        let s:vit_compile_currjob = job_start(
-            \ join([vit_compiler[0], vit_compiler_flags[0],
-            \       a:flags, fnameescape(filepath)], ' '),
-            \ #{exit_cb: {_, exit ->
-            \       vit#CompileCallback(exit, filepath, pwd, a:silent, a:flags,
-            \                           numcomp, currentcomp)},
-            \   cwd: pwd})
-    elseif a:silent == ''
-        " open terminal
-        if len(vit_compiler) < 2
-            echohl ErrorMsg
-            redraw
-            echomsg 'No compiler defined for terminal compilation in ViT: '
-                \ .string(vit_compiler).' '.string(vit_compiler_flags)
-            echohl None
-            return
-        endif
-        :vertical :belowright call term_start(
-            \ join([vit_compiler[1], vit_compiler_flags[1],
-            \       a:flags, fnameescape(filepath)], ' '),
-            \ #{term_finish: 'close',
-            \   exit_cb: {_, exit ->
-            \       vit#CompileCallback(exit, filepath, pwd, a:silent, a:flags,
-            \                           numcomp, currentcomp)},
-            \   cwd: pwd})
-    else
-        echohl ErrorMsg
-        redraw
-        echomsg 'Unknown compilation option "'.a:silent.'" for "silent"'
-        return
-    endif
-    " tell this buffer it is being compiled
-    let b:vit_is_compiling = 1
-endfunction
+    let compiler = cdict['compiler']
+    let flags    = cdict['flags']
+    let errregex = cdict['errregex']
+    let numcomps = cdict['numcomps']
 
-if g:vit_max_errors > 0
-    call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
-endif
-" TODO: document the arguments of this function as it got quite complex
-function vit#CompileCallback(exit, filepath, pwd, silent, flags, numcomp, currentcomp)
-    " mark compilation as done
-    let b:vit_is_compiling = 0
-    " check if we still want to compile or not
-    if a:currentcomp < a:numcomp
-        " recursively call and go no farther in callback
-        call vit#Compile(a:filepath, a:pwd, a:silent, a:flags,
-                    \    a:numcomp, a:currentcomp + 1)
+    " handle status of last compilation and early aborts
+    if numcomps <= 0
         return
     endif
-    let buf = bufnr(a:filepath)
-    " call scanning
-    if g:vit_enable_scanning
-        call vit#ScanFromLog(a:filepath, a:pwd)
+    " if no job has been created we can assume that it is dead (see :h job_status())
+    let jobstat = exists('s:vcurrjob') ? job_status(s:currjob) : 'dead'
+    if g:vit_is_compiling && jobstat == 'run'
+        let g:vit_compilation_queued = 1
+        echomsg 'Compilation for buffer "'.a:buf.'" queued.'
+        return
+    else
+        let g:vit_is_compiling = 0
+        " if this is the first call to this function, we also want to reset the
+        " 'compilation_queued' variable, since that is the current call
+        if a:currentcomp is v:none
+            let g:vit_compilation_queued = 0
+        endif
     endif
-    " remove old signs
-    if g:vit_max_errors > 0
-        call setbufvar(buf, 'vit_signs', {})
+
+    " handle error signs, quickfix list, etc. resets
+    " do this for sure if the signs var is not empty, so we don't accidentally keep
+    " around signs that the user wanted to disable
+    if g:vit_max_errors > 0 || !empty(g:vit_signs)
+        let g:vit_signs = {}
         call sign_unplace('ViT')
         call setqflist([], 'r')
     endif
-    " handle success
-    if a:exit == 0
-        echohl MoreMsg | redraw | echo 'Compiled succesfully! Yay!' | echohl None
+
+    " now we are actually gonna compile! yay
+    redraw | echo 'Compiling No. '.currentcomp.' of '.numcomps.'...'
+    let cmd = s:PrepareArgs([compiler, flags], fnameescape(filepath))
+    if a:silent == '!' || a:silent == '1' || a:silent == 1 || a:silent is v:true
+        let s:currjob = job_start(cmd, #{cwd: pwd,
+                    \ callback: {_, msg -> vit#CompileCallback(msg, a:buf, errregex)},
+                    \ exit_cb: {_, exit -> vit#CompileExitCallback(exit, numcomps, a:buf,
+                        \ a:silent, a:compiler, pwd, currentcomp)},
+                    \ })
+    else
+        let term_buffer = term_start(cmd, #{cwd: pwd,
+                    \ callback: {_, msg -> vit#CompileCallback(msg, a:buf, errregex)},
+                    \ exit_cb: {_, exit -> vit#CompileExitCallback(exit, numcomps, a:buf,
+                        \ a:silent, a:compiler, pwd, currentcomp)},
+                    \ })
+        let s:currjob = term_getjob(term_buffer)
+    end
+
+    let g:vit_is_compiling = 1
+endfunction
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ COMPILATION CALLBACK ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+function vit#CompileCallback(msg, buf, errregex)
+    " check if error parsings are even enabled in this pass
+    if g:vit_max_errors < 1 || g:vit_num_errors >= g:vit_max_errors
         return
     endif
-    " handle errors
-    try
-        let statusmsgs = []
-        " read signs dict
-        let vit_signs_dict = getbufvar(buf, 'vit_signs', {})
-        " loop over lines in logfile
-        let logfile = readfile(findfile(fnamemodify(a:filepath, ':r').'.log', a:pwd))
-        let [lnum, num_matched, logfile_len] = [0, 0, len(logfile)]
-        while lnum < logfile_len && num_matched < g:vit_max_errors
-            " try to match message for error
-            let errmatch = matchlist(logfile[lnum], g:vit_error_regexp)
-            if len(errmatch) < 3
-                let lnum += 1
-                continue
-            endif
-            let [errfile, errline, errmsg]
-                        \ = [errmatch[1], str2nr(errmatch[2]), errmatch[3]]
-            " place sign
-            call sign_place(0, 'ViT', 'ViTError', buf, #{lnum: errline})
-            " place quickfix list
-            call setqflist([
-                        \ #{bufnr: buf, lnum: errline, text: errmsg,
-                        \   type: 'E', module: errfile, valid: 1}],
-                        \ 'a')
-            " set signs for hover func
-            let vit_signs_dict[errline] = errmsg
-            " add status message
-            let statusmsgs += ['Compiled with errors (line '.errline.'): '.errmsg]
-            " accounting
-            let num_matched += 1
-            let lnum += 1
-        endwhile
 
-        echohl ErrorMsg
-        redraw
-        if !empty(statusmsgs)
-            echomsg statusmsgs[0]
-        elseif g:vit_max_errors == 0
-            echomsg 'Compiled wtih errors.'
-        else
-            echomsg 'Compiled with errors, but no error messages found in .log file.'
-        endif
-        echohl None
-    catch /.*E484.*/
-        echohl ErrorMsg
-        redraw
-        echomsg 'Compiled with errors, but found no .log file for this buffer.'
-        echohl None
-    endtry
+    " do actual list match so we can extract the right parts
+    let match = matchlist(a:msg, a:errregex)
+    if empty(match)
+        return
+    endif
+    let [_, file, line, error; _] = match
+    " assume current file if none given, if buffer is not found, abort
+    let errbuf = bufnr(empty(file) ? a:buf : file)
+    if errbuf == -1
+        return
+    endif
+    " if no line or error is given, abort
+    if empty(line) || empty(error)
+        return
+    endif
+
+    " place sign (0 for allocating new identifier)
+    call sign_place(0, 'ViT', 'ViTError', errbuf, #{lnum: line})
+    " place in quickfix list
+    call setqflist([
+                \ #{bufnr: errbuf, lnum: line, text: error,
+                \   type: 'E', module: bufname(errbuf), valid: 1}],
+                \ 'a')
+    " set signs for hover function, format is 'bufnr:line' for keys
+    let g:vit_signs[errbuf..line] = error
+
+    " TODO: look into printing status messages for this callback
+endfunction
+
+function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, currentcomp)
+    let g:vit_is_compiling = 0
+
+    if a:currentcomp < a:numcomps
+        " call the function again and return
+        call vit#Compile(a:buf, a:silent, a:compiler, a:pwd, a:currentcomp + 1)
+        return
+    endif
+    if g:vit_compilation_queued
+        " if a compilation was queued, just call that again now and return
+        let g:vit_compilation_queued = 0
+        call vit#Compile(a:buf, a:silent, a:compiler, a:pwd, v:none)
+        return
+    endif
+
+    " handle success message
+    if a:exit == 0
+        echohl MoreMsg  | redraw | echo 'Compiled succesfully! Yay!' | echohl None
+    else
+        echohl ErrorMsg | redraw | echo 'Compiled with errors... :(' | echohl None
+    endif
 endfunction
 
 function vit#CompileSignHover()
-    let vit_sign_msg = get(getbufvar(bufname(), 'vit_signs', {}), line('.'), '')
-    if !empty(vit_sign_msg)
-        echohl ErrorMsg | redraw | echo vit_sign_msg | echohl None
+    " key format as described in ViT#CompileCallback
+    let err = get(g:vit_signs, bufnr()..line('.'), v:none)
+    if !(err is v:none || empty(err))
+        echohl ErrorMsg | redraw | echo err | echohl None
     endif
 endfunction
-
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ HIGHLIGHTING GROUPS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-highlight ViTErrorSign ctermfg=Red ctermbg=DarkRed
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATING FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
@@ -277,14 +268,8 @@ highlight ViTErrorSign ctermfg=Red ctermbg=DarkRed
 " Sets up a new ViT template.
 " Arguments:
 "   name, the name of the command to be defined
-"   class, determines which local class this command template is a part of, acts globally
-"       if the set class is 'latex'
 "   keybind, the keybind to access this command, or '' for no keybind
 "   inlinemode, '0' for no inline mode, '1' for inline mode
-"   completionitem, whether to make this tempalte an auto-completion
-"       entry upon creating the command (and possibly keybinds),
-"       the call to 'vit#NewCompletionOption' will be made using
-"       the first item of 'textbefore'
 "   finalcursoroffset, the position that the cursor will be set to
 "       upon completing the template
 "   middleindent, the indent of text that the template surrounds in
@@ -295,7 +280,7 @@ highlight ViTErrorSign ctermfg=Red ctermbg=DarkRed
 "       'text(before|after)' arguments
 "   [...,] the rest parameter contains the names of the template
 "        parameters, see 'ViTPromptTemplateCompletion'
-function vit#NewTemplate(name, class, keybind, inlinemode, completionitem,
+function vit#NewTemplate(name, keybind, inlinemode,
             \ finalcursoroffset, middleindent, textbefore, textafter,
             \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
     let id = rand(srand())
@@ -348,255 +333,89 @@ function vit#NewTemplate(name, class, keybind, inlinemode, completionitem,
         execute 'inoremap <buffer> '.a:keybind.' <C-O>:call '
                     \ .funcname.'("i", col("."))<CR>'
         execute 'xnoremap <buffer> '.a:keybind.' :call '
-                    \ .funcname.'(visualmode(), col("."))'
+                    \ .funcname.'(visualmode(), col("."))<CR>'
     endif
-    " ~~~~~~~~~~ completion
-    if a:completionitem && len(a:textbefore) > 0
-        call vit#NewCompletionOption(
-                    \ a:textbefore[0],
-                    \ a:class,
-                    \ 'call '.funcname.'("i", col("."))')
+    " ~~~~~~~~~~ commands
+    if g:vit_enable_commands
+        execute 'command! -buffer -range -nargs=0 '.a:name
+                    \ .' :<line1>,<line2>call '.funcname.'("i", col("."))'
     endif
+    " return function reference for convenience, you're welcome ;>
     return funcref(funcname)
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ COMPLETION ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ FILE TREE ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-" Adds completion option 'name' to 'class' globally.
-" Arguments:
-"     - name, the name of the completion option item
-"     - class, the class this completion option item belongs to
-"     - [command,] the command to execute when using this completion option item,
-"           defaults to '' which means the contents of 'name' will be inserted in
-"           place of executing a command
-"     - [static,] determindes whether to add to the static commands or not
-function vit#NewCompletionOption(name, class, command = '', static = 0)
-    " create new completion option item
-    let item = empty(a:command)
-                \ ? a:name
-                \ : #{word: a:name, user_data: 'vit_'.a:command}
-    " check if key exists in commands
-    let normed = s:NormClass(a:class)
-    let vit_commands = a:static ? g:vit_static_commands : g:vit_commands
-    if has_key(vit_commands, normed)
-        let l = vit_commands[normed]
-        " check if something similar exists and remove that so we do not
-        " end up with '\abc' and '\abc{' simultaneously
-        for suffix in ['', '[', '{']
-            let idx = index(l, a:name.suffix, 0, 0)
-            if idx != -1 | call remove(l, idx) | endif
-        endfor
-        let l += [item]
-    else
-        let vit_commands[normed] = [item]
-    endif
+function vit#ResetRootFile(buf)
+    let buf = bufname(a:buf)
+    call s:ResetVar(buf, 'vit_file_tree', s:MakeFileNode(buf))
 endfunction
 
-" Removes the completion option items from a global class.
-function vit#ResetCompletionOptionClass(class)
-    let normed = s:NormClass(a:class)
-    let g:vit_commands[normed] = copy(get(g:vit_static_commands, normed, []))
+function vit#AddParentFile(buf, filename)
+    call vitnode#AddParentNode(s:GetRootNode(a:buf), s:MakeFileNode(a:filename))
 endfunction
 
-" Marks 'class' as included in buffer 'buf'.
-function vit#Include(buf, class)
-    let vit_includes = s:GetVar(a:buf, 'vit_includes')
-    let normed = s:NormClass(a:class)
-    if index(vit_includes, normed) == -1
-        let vit_includes += [normed]
-    endif
+function vit#GetRootFile(buf)
+    return get(s:GetRootNode(a:buf), 'data', v:none)
 endfunction
 
-" Resets the included classes in buffer 'buf' to the default global value.
-function vit#ResetInclude(buf)
-    call s:ResetVar(a:buf, 'vit_includes')
-endfunction
-
-function vit#GetCompletionOptions(buf)
-    if !g:vit_enable_completion | return [] | endif
-    let vit_includes = s:GetVar(a:buf, 'vit_includes')
-    return flattennew(values(
-                \ filter(g:vit_commands, 'index(vit_includes, v:key) != -1'),
-            \ ))
-endfunction
-
-" Normalizes a path to a class string.
-function s:NormClass(class)
-    return split(a:class, '\.')[0]
-endfunction
-
-" see :h complete-functions for more details
-function vit#CompleteFunc(findstart, base)
-    " get last 'word' under cursor
-    if a:findstart
-        let searchspace = strpart(getline('.'), 0, col('.') - 1)
-        return max([0,
-                  \ strridx(searchspace, ' ') + 1,
-                  \ strridx(searchspace, '\')])
-    endif
-    let matches = [a:base]
-    let matches += matchfuzzy(
-                \ vit#GetCompletionOptions(bufname()),
-                \ a:base, #{key: 'word'})
-    return matches
-endfunction
-
-" Deletes the just inserted item and replaces it with a command encoded
-" in the 'user_data' of the completion menu item if it came from this
-" plugin.
-function vit#CompletionDetection()
-    let item = v:completed_item
-    " stop if user_data does not exist on the item
-    if empty(item) || !has_key(item, 'user_data')
-        return
-    endif
-    " split into [WHOLE_MATCH, Command, mode, ...] or []
-    let match = matchlist(item['user_data'], 'vit_\(.*\)')
-    " return if we did not find at least [WHOLE_MATCH, Command]
-    if empty(get(match, 0, '')) || empty(get(match, 1, ''))
-        return
-    endif
-    " construct new line with removed 'word'
-    let [lnum, col, line] = [line('.'), col('.'), getline('.')]
-    let wordlen = strlen(item['word'])
-    let newline = strpart(line, 0, col - wordlen - 1).strpart(line, col - 1, 999999)
-    call setline(lnum, newline)
-    " put cursor back
-    call setpos('.', [bufnr(), lnum, col - wordlen])
-    " execute command given by item
-    execute match[1]
-endfunction
-
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ SCANNING ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-" Scans the current buffer for changes in definitions. This operations will not delete
-" any information and only consider additions.
-function vit#ScanFromBuffer(buf, cwd)
-    let g:vit_scan_currjob = job_start(g:vit_scan_prg,
-                \ {'out_cb': {_, msg ->
-                        \ vit#ScanFileCallback(a:buf, msg, 1, bufname(a:buf))},
-                \  'in_io': 'buffer', 'in_buf': bufnr(a:buf),
-                \  'cwd': a:cwd})
-endfunction
-
-" Scans the file with the given 'texname' by looking through the log, if such a log
-" exists. This operation will re-scan all includes of buffer 'buf' and rebuild affected
-" files in the global class cache.
-function vit#ScanFromLog(buf, cwd)
-    call vit#ResetInclude(a:buf)
-    let g:vit_scan_currjob = job_start(g:vit_scan_prg.' '.bufname(a:buf),
-                \ {'out_cb': {_, msg ->
-                        \ vit#ScanFileCallback(a:buf, msg, 0)},
-                \  'cwd': a:cwd})
-endfunction
-
-" Callback for executions of the 'util/scan.py' utility.
-function vit#ScanFileCallback(buf, msg, noremove, stdinname = '') abort
-    let [type, class; rest] = split(a:msg, ' ')
-    if class == '<stdin>' | let class = a:stdinname | endif
-    if type == 'include'
-        " we don't wanna reset completion options classes if we are reading
-        " from a single buffer and/or noremove is set
-        if !a:noremove
-            call vit#ResetCompletionOptionClass(class)
+function s:GetRootNode(buf)
+    let node = s:GetVar(bufname(a:buf), 'vit_file_tree')
+    " skip this loop if node is none
+    while !(node is v:none) && (len(node['parents']) > 0)
+        if len(node['parents']) > 1
+            echohl ErrorMsg
+            echomsg 'A ViT file tree node cannot have multiple parents. '
+                        \ .'Offending node is '.vitnode#ToString(node, 1)
+            echohl None
         endif
-        " mark this file as included
-        call vit#Include(a:buf, class)
-    elseif type == 'command'
-        let [cmdname, numargs; _] = rest
-        call vit#NewCompletionOption((numargs > 0) ? cmdname.'{' : cmdname, class)
-    elseif type == 'environ'
-        let [cmdname; _] = rest
-        call vit#NewTemplate(substitute('ViT'.cmdname, '\*\|#', '_ill', 'g'), class,
-                    \ '', 0, 1, [1, 5], 4,
-                    \ ['\begin{'.cmdname.'}'], ['\end{'.cmdname.'}'])
-    else
+        let node = node['parents'][0]
+    endwhile
+    if node is v:none
         echohl ErrorMsg
-        redraw
-        echomsg 'Unknown ScanFiles tuple type "'.type.'"'
+        echomsg 'This buffer has no root file set. Something went wrong with ViT...'
         echohl None
     endif
+    return node
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-" Resets variable 'name' to the global value 'g:name' in buffer 'buf'.
-function s:ResetVar(buf, name)
-    call setbufvar(a:buf, a:name, copy(g:{a:name}))
+function s:MakeFileNode(filename)
+    return vitnode#Node(s:PrepareFname(a:filename, 1))
 endfunction
 
-" Retrieves the variable 'name' in buffer 'buf', or from the global variable 'g:name' if
-" 'global' is set to a truthy value.
-function s:GetVar(buf, name, global = 0)
-    " reset if not found already
-    if !exists('b:'.a:name) | call s:ResetVar(a:buf, a:name) | endif
-    " return value
-    return a:global ? g:{a:name} : getbufvar(a:buf, a:name)
-endfunction
-
-" Moves cursor to the right to simulate the <Tab> behavior in other IDEs.
-" Arguments:
-"   [chars,] defaults to 'g:vit_jump_chars', a list of characters to
-"       consider for a new column
-function vit#SmartMoveCursorRight(chars = g:vit_jump_chars)
-    let [lnum, col, line] = [line('.'), col('.'), getline('.')]
-    " do actual smart movey things
-    let cols = []
-    for char in a:chars
-        let newidx = stridx(line, char, col - 1) + 2
-        " only add after cursor
-        if newidx > col
-            let cols += [newidx]
-        endif
-        " break loop if we found a min already
-        if newidx == col + 1
-            break
-        endif
-    endfor
-    call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
-endfunction
-
-" Returns the name of the LaTeX environment the cursor is currently positioned in.
-function vit#CurrentTeXEnv()
-    let flags = 'bcnWz'
-    " search for \begin{...} \end{...}
-    let [lnum, col] = searchpairpos('\\begin{\_[^@\}#]\+}', '',
-                                  \   '\\end{\_[^@\}#]\+}', flags)
-    " now we get '\begin{envname}'
-    let envname = get(matchlist(getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1), 1, '')
-    return envname
-endfunction
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ MODELINE ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Sets the vit_compiler, vit_num_compilations variable, and what larger file tree this
 " file is included in based on the following syntax:
 "
-"     Modeline      ::= ^ .* '%' \s* 'ViT' \s+ ( <Compilation> | <Included> ) \s* $ ;
+"     Modeline      ::= ^ .* '%' \s* 'ViT' \s+ ( <Compilation> | <WriteCompile>
+"                           | <Included> ) \s* $ ;
 "
 "     Included      ::= 'included in' \s+ <File> ;
 "     File          ::= .+ ;
 "
-"     Compilation   ::= <Numcomps> ( \s+ <Compiler> ( \s+ <CompilerFlags> )? )? ;
-"     Numcomps      ::= x\d\+ ;
+"     Compilation   ::= <Numcomps> ( \s+ <OnWrite> )?
+"                           ( \s+ <Compiler> ( \s+ <CompilerFlags> )? )? ;
+"     OnWrite       ::= 'onwrite' | 'on-write' | 'onsave' | 'on-save' ;
+"     Numcomps      ::= ( 'x' \d\+ ) | ( \d\+ 'x' ) ;
 "     Compiler      ::= '-' | \w+ ;
-"     CompilerFlags ::= .+ ;
+"     CompilerFlags ::= '-' | .+ ;
 "
 " For instance ' Something Here % ViT  x2 pdflatex -file-line-error' would be interpreted
 " as having the compilers ['pdflatex', 'pdflatex'] with the arguments ['-file-line-error,
 " '-file-line-error'] and 2 compilations. The text ' Something Here ' is fully ignored.
-" When <Compiler> is set to '-', it assumes the global value. When no <Compiler> or
-" <CompilerFlags> are found, they assume the global value.
+" When <Compiler> or <CompilerFlags> are set to '-', the global value is assumed,
+" otherwise the empty string.
 "
 " Multiple modelines can be put in the first lines of the document, so one might set both
 " the compilation flags and the included-in flag by doing the following:
 "
 "   % ViT included in ../main.tex
-"   % ViT x2 xetex -etex
+"   % ViT x2 onwrite xetex -etex
 "
 " A file tree is traversed bottom-up, so the compilation runs once on the top of the tree
 " but the settings from the lower files override the 'higher' settings.
@@ -609,14 +428,14 @@ endfunction
 "   [numlines,] how many lines to parse before giving up, defaults to 15
 "   [maxdepth,] the number of files the buffer is included in to traverse before giving
 "       up, defaults to 8
-function vit#ParseModeline(buf, numlines = 15, maxdepth = 8)
+function vit#ParseModeline(buf, numlines = 15, maxdepth = 15)
+    let buf = bufname(a:buf)
     " reset variables so we don't keep adding onto them when we reload the modelines
-    call s:ResetVar(a:buf, 'vit_included_in')
-    call s:ResetVar(a:buf, 'vit_compiler')
-    call s:ResetVar(a:buf, 'vit_compiler_flags')
-    call s:ResetVar(a:buf, 'vit_num_compilations')
+    call vit#ResetRootFile(buf)
+    call s:ResetVar(buf, 'vit_compiler')
+    call s:ResetVar(buf, 'vit_compile_on_write')
     " call the work-horse
-    call s:ParseModeline(a:buf, bufname(a:buf), 0, a:numlines, a:maxdepth)
+    call s:ParseModeline(a:buf, buf, 0, a:numlines, a:maxdepth)
 endfunction
 
 " Recursive work-horse of vit#ParseModeline().
@@ -653,23 +472,13 @@ function s:ParseModeline(buf, file, depth, numlines, maxdepth)
             endif
             let includedin = match[1]
             " file
-            let vit_included_in = s:GetVar(a:buf, 'vit_included_in')
             if !empty(includedin)
                 " get actual path of the file
-                let includedin_search = findfile(includedin, '.')
-                " if it is empty now, the file does not exist
-                if empty(includedin_search)
-                    echohl ErrorMsg
-                    echomsg 'No such file "'.includedin.'" found for modeline in "'
-                                \ .a:file.'"'
-                    echohl None
-                    break
-                else
-                    let vit_included_in += [includedin_search]
-                    " parse modeline of includedin file
-                    call s:ParseModeline(a:buf, includedin_search, a:depth + 1,
-                                \ a:numlines, a:maxdepth)
-                endif
+                let file = s:PrepareFname(includedin, 1)
+                " modify file tree
+                call vit#AddParentFile(a:buf, file)
+                " parse modeline of includedin file
+                call s:ParseModeline(a:buf, file, a:depth + 1, a:numlines, a:maxdepth)
             endif
             " skip to next line
             continue
@@ -678,8 +487,10 @@ function s:ParseModeline(buf, file, depth, numlines, maxdepth)
         " ~~~~~~~~~~ compilation modeline
         let match = matchlist(line,
                     \ modeline_pre
-                    \ .'x\(\d\+\)'
-                    \ .'\%(\s\+\(-\|\%(\w\+\)\)\%(\s\+\(.\+\)\)\=\)\='
+                    \ .'\%(x\=\(\d\+\)x\=\)'
+                    \ .'\%(\s\+\(\|onwrite\|on-write\|onsave\|on-save\)\)'
+                    \ .'\%(\s\+\(\%(\w\+\)\|\-\)'
+                        \ .'\%(\s\+\(\%(.\+\)\|-\)\)\=\)\='
                     \ .modeline_suf)
         if !empty(match)
             if read_compile != 0
@@ -691,28 +502,204 @@ function s:ParseModeline(buf, file, depth, numlines, maxdepth)
             else
                 let read_compile += 1
             endif
-            let [numcomps, comp, compflags] = [match[1], match[2], trim(match[3])]
+            let [numcomps, onwrite, comp, compflags]
+                    \ = [match[1], match[2], match[3], match[4]]
+            " handle logic where we set both comp and compflags to '-' if they are empty
+            " in case the user wants to just write '% ViT x3' without resetting the
+            " compiler and its flags
+            if empty(comp) && empty(compflags)
+                let [comp, compflags] = ['-', '-']
+            endif
+            let vit_compiler = s:GetVar(a:buf, 'vit_compiler')
             " num compilations
             if !empty(numcomps)
-                let b:vit_num_compilations = str2nr(numcomps)
+                let vit_compiler['numcomps'] = str2nr(numcomps)
+            endif
+            " on-write
+            if !empty(onwrite)
+                call setbufvar(a:buf, 'vit_compile_on_write', 1)
             endif
             " compiler
-            let vit_compiler = s:GetVar(a:buf, 'vit_compiler')
-            if !empty(comp) && comp != '-'
-                for i in range(2)
-                    let vit_compiler[i] = comp
-                endfor
+            if comp != '-'
+                let vit_compiler['compiler'] = comp
             endif
             " compiler flags
-            let vit_compiler_flags = s:GetVar(a:buf, 'vit_compiler_flags')
-            if !empty(compflags)
-                for i in range(2)
-                    let vit_compiler_flags[i] = compflags
-                endfor
+            if compflags != '-'
+                let vit_compiler['flags'] = compflags
             endif
             " skip to next line
             continue
         endif
     endfor
+endfunction
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ TeX UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Moves cursor to the right to simulate the <Tab> behavior in other IDEs.
+" Arguments:
+"   [chars,] defaults to 'g:vit_jump_chars', a list of characters to
+"       consider for a new column
+function vit#SmartMoveCursorRight(chars = g:vit_jump_chars)
+    let [lnum, col, line] = [line('.'), col('.'), getline('.')]
+    " do actual smart movey things
+    let cols = []
+    for char in a:chars
+        let newidx = stridx(line, char, col - 1) + 2
+        " only add after cursor
+        if newidx > col
+            let cols += [newidx]
+        endif
+        " break loop if we found a min already
+        if newidx == col + 1
+            break
+        endif
+    endfor
+    call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
+endfunction
+
+" Returns the name of the LaTeX environment the cursor is currently positioned in.
+function vit#CurrentTeXEnv()
+    let flags = 'bcnWz'
+    " search for \begin{...} \end{...}
+    let [lnum, col] = searchpairpos('\\begin{\_[^@\}#]\+}', '',
+                                  \   '\\end{\_[^@\}#]\+}', flags)
+    " now we get '\begin{envname}'
+    let envname = get(matchlist(getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1), 1, '')
+    return envname
+endfunction
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ MISC UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Resets variable 'name' to copy of the global value 'g:name' in buffer 'buf' or to
+" 'default' if global variable is not found.
+function s:ResetVar(buf, name, default = v:none)
+    call setbufvar(bufname(a:buf), a:name,
+                \ exists('g:'.a:name) ? copy(g:{a:name}) : a:default)
+endfunction
+
+" Retrieves the variable 'name' in buffer 'buf', or sets the value to 'default' if it is
+" not found and no global value 'g:name' exists, otherwise set to copy of 'g:name'.
+function s:GetVar(buf, name, default = v:none)
+    let buf = bufname(a:buf)
+    " reset if not found already
+    let bufvar = getbufvar(buf, a:name)
+    if bufvar is v:none
+        call s:ResetVar(buf, a:name, a:default)
+        return getbufvar(buf, a:name)
+    else
+        return bufvar
+    endif
+endfunction
+
+" Prepare a list of argument strings for a process.
+function s:PrepareArgs(args, filepath)
+    " replace % with the file in flags, \\\@<!% means match '%' only if it is not
+    " preceeded by '\', so that we can escape % with \%
+    return substitute(join(a:args, ' '), '\\\@<!%', a:filepath, 'g')
+endfunction
+
+" Same functionality as s:PrepareFname() but applied to a whole list of names.
+function s:PrepareFnames(fnames, showerror = v:true, pwd = v:null)
+    let out = []
+    for fname in a:fnames
+        let newfname = s:PrepareFname(fname, a:showerror, a:pwd)
+        if !empty(newfname) | let out += [newfname] | endif
+    endfor
+    return out
+endfunction
+
+" Make sure file name points to an actually existing file and make the path relative to
+" the given pwd or the cwd if no value is given.
+" Arguments:
+"   fname, a filename to modify
+"   [showerror,] if true, display an error message for an invalid file pointer, otherwise
+"       just siltently ignore the file
+"   [path,] the path to search in if the file is not found immediately, defaults to the
+"       current working directory
+function s:PrepareFname(fname, showerror = v:true, path = v:null)
+    let path = (a:path is v:null) ? getcwd() : a:path
+    if filereadable(a:fname)
+        " nothing needs to be done
+        return a:fname
+    endif
+    " try to find file
+    let tmpwd = fnamemodify(a:fname, ':h')
+    let tmpfname = fnamemodify(a:fname, ':t')
+    let found = findfile(tmpfname, tmpwd)
+    if empty(found) || !filereadable(found)
+        if !a:showerror | return | endif
+        echohl ErrorMsg
+        redraw | echomsg 'Unable to locate file "'.tmpfname.'" relative to "'.tmpwd.'"'
+        echohl None
+    else
+        return fnamemodify(found, ':p')
+    endif
+endfunction
+
+" Opens a read-only status buffer in another window.
+function vit#Status(buf)
+    let buf = bufname(a:buf)
+    " check if we should even be able to open it here
+    if &filetype != 'latex'
+        echo 'Not a ViT buffer.' | return
+    endif
+
+    let title = 'ViT Status for "'.buf.'"'
+    " wipe previous buffer, if there is one
+    if bufexists(title)
+        execute 'bwipeout! '.bufnr(title)
+    endif
+    " make new buffer
+    let statbuf = bufadd(title)
+    " load buffer
+    call bufload(statbuf)
+    if !bufexists(statbuf) || !bufloaded(statbuf)
+        echo 'Unable to create and load status buffer for ViT.' | return
+    endif
+
+    " set string list, this is all in Markdown format
+    let strs = ['# '.title, '']
+
+    call add(strs, '## Compiler:')
+    call add(strs, '```')
+    call add(strs, '  {')
+    for [key, value] in items(s:GetVar(buf, 'vit_compiler'))
+        call add(strs, '    '.string(key).': '.string(value).',')
+    endfor
+    call add(strs, '  }')
+    call add(strs, '```')
+    call add(strs, '')
+
+    call add(strs, '## File Tree:')
+    call add(strs, '```')
+    call extend(strs, vitnode#ToString(s:GetRootNode(buf), 1))
+    call add(strs, '```')
+    call add(strs, '')
+    " write string list
+
+    call appendbufline(statbuf, 0, strs)
+
+    " open the buffer, bufnr just to make sure we don't use a name with spaces here
+    execute 'sbuffer +setlocal\ buftype=nofile\ readonly\ '
+                \ .'filetype=markdown\ nospell '.bufnr(statbuf)
+endfunction
+
+" Returns a very approximate byte size for a variable.
+function vit#SizeOf(EL)
+    let [t, size] = [type(a:EL), 0]
+    if t is v:t_list
+        for E in a:EL | let size += vit#SizeOf(E) | endfor
+    elseif t is v:t_dict
+        for [K, V] in items(a:EL) | let size += vit#SizeOf(K) + vit#SizeOf(V) | endfor
+    elseif t is v:t_number || t is v:t_string || t is v:t_blob
+        let size += len(a:EL)
+    else
+        let size += 1
+    endif
+    return size
 endfunction
 

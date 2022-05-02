@@ -6,29 +6,23 @@ ViT						    *vit* *vit-toc*
 
 1. Introduction					    |vit-intro|
 2. Configuration Options			    |vit-config|
-    2.1  The |g:vit_enable| option
-    2.2  The |g:vit_enable_keybinds| option
-    2.3  The |g:vit_enable_completion| option
-    2.4  The |g:vit_enable_scanning| option
-    2.5  The |g:vit_leader| option
-    2.6  The |g:vit_compiler| option
-    2.7  The |g:vit_compiler_flags| option
-    2.8  The |g:vit_num_compilations| option
-    2.9  The |g:vit_max_errors| option
-    2.10 The |g:vit_error_regexp| option
-    2.11 The |g:vit_jump_chars| option
-    2.12 The |g:vit_template_remove_on_abort| option
-    2.13 The |g:vit_comment_line| option
-    2.14 The |g:vit_static_commands| option
-    2.15 The |g:vit_includes| option
-    2.16 The |g:vit_autosurround_chars| option
+    2.a The |g:vit_enable| option
+    2.b The |g:vit_enable_keybinds| option
+    2.c The |g:vit_enable_commands| option
+    2.d The |g:vit_leader| option
+    2.e The |g:vit_compiler| option
+    2.f The |g:vit_max_errors| option
+    2.g The |g:vit_jump_chars| option
+    2.h The |g:vit_template_remove_on_abort| option
+    2.i The |g:vit_comment_line| option
+    2.j The |g:vit_autosurround_chars| option
+    2.k The |g:vit_compile_on_write| option
 3. Templates					    |vit-templates|
     3.a Definition of new Templates		    |vit-templates-new|
     3.b Builtin Templates			    |vit-templates-builtin|
-4. Insert-Mode Completion			    |vit-completion|
-5. Compiling					    |vit-compiling|
-6. Smart Typing					    |vit-smart-typing|
-7. License					    |vit-license|
+4. Compiling					    |vit-compiling|
+5. Smart Typing					    |vit-smart-typing|
+6. License					    |vit-license|
 
 ==============================================================================
 1. Introduction					    *vit-intro*
@@ -50,37 +44,28 @@ See |vit-license| for licensing details.
 2. Configuration Options			    *vit-config*
 
 ------------------------------------------------------------------------------
-2.1 The *g:vit_enable* option (boolean)
+2.a The *g:vit_enable* option (boolean)
 
 Enables or disables the entire plugin.
 Default value: >
     let g:vit_enable = 1
 <
 ------------------------------------------------------------------------------
-2.2 The *g:vit_enable_keybinds* option (boolean)
+2.b The *g:vit_enable_keybinds* option (boolean)
 
 Enables or disables ViT keybinds.
 Default value: >
     let g:vit_enable_keybinds = 1
 <
 ------------------------------------------------------------------------------
-2.3 The *g:vit_enable_completion* option (boolean)
+2.c The *g:vit_enable_completion* option (boolean)
 
-Enables or disables the completion system, including completion keybinds. See
-|vit-completion|.
+Enables or disables commands predefined or dynamically created by ViT.
 Default value: >
-    let g:vit_enable_completion = 1
+    let g:vit_enable_commands = 1
 <
 ------------------------------------------------------------------------------
-2.4 The *g:vit_enable_scanning* option (boolean)
-
-Enables or disables the scaninng system which is a subset of the completion
-system. See |vit-scanning|.
-Default value: >
-    let g:vit_enable_scanning = 1
-<
-------------------------------------------------------------------------------
-2.5 The *g:vit_leader* option (string)
+2.d The *g:vit_leader* option (string)
 
 Sets the leader key for keybinds in ViT. See <ViT> in |vit-templates-builtin|
 for example.
@@ -88,58 +73,44 @@ Default value: >
     let g:vit_leader = '<C-@>'
 <
 ------------------------------------------------------------------------------
-2.6 The *g:vit_compiler* option (list of form [string, string])
+2.e The *g:vit_compiler* option (dict of {{compiler}: str, {flags}: str,
+			      {errregex}: str, {numcomps}: int})
 
-Sets the command that is used to compile files. The first index is used when
-compiling silently, the second index is used when compiling in a terminal
-window. For more info on compiling, see |vit-compiling|.
+Sets the command, and other options, that are used to compile files.
+
+{compiler}:
+    The program to execute to compile.
+{flags}:
+    The defaults flags to pass to the compiler.
+{errregex}:
+    The string used to parse the compiler output. For more information see
+    |vit-signs|.
+{numcomps}:
+    Sets the number of compilations that are performed
+    at once when saving a file or calling |vit#Compile()|. Note that the
+    command |:ViTCompile| does not use this variable, but instead the
+    provided [count].
+
+For more info on compiling, see |vit-compiling|.
 Default value: >
-    let g:vit_compiler = ['pdflatex', 'pdflatex']
-<
+    let g:vit_compiler = {
+	    \ 'compiler': 'pdflatex',
+	    \ 'flags': '-interaction=nonstopmode -file-line-error %',
+	    \ 'errregex':
+		\ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$',
+	    \ 'numcomps': 1,
+	\ }
+>
 ------------------------------------------------------------------------------
-2.7 The *g:vit_compiler_flags* option (list of form [string, string])
+2.f The *g:vit_max_errors* option (number)
 
-Sets the flags for the command specified by |g:vit_compiler|. The first index
-is used for compiling silently, the second index is used when compiling in a
-terminal window. The argument 'file-line-error' is needed to ensure the
-regular expression in |g:vit_error_regexp| matches in the log file. The
-argument '-interaction=nonstopmode' is important for silent execution, as the
-user cannot input anything. See |vit-compiling|, and |vit-compiling-signs| for
-more details.
-Default value: >
-    let g:vit_compiler_flags =
-        \ ['-interaction=nonstopmode -file-line-error', '-file-line-error']})
-<
-------------------------------------------------------------------------------
-2.8 The *g:vit_num_compilations* option (number)
-
-Sets the number of compilations that are performed at once when saving a file
-or calling |vit#Compile()|. Note that the command |:ViTCompile| does not use
-this variable, but instead the provided [count].
-Default value: >
-    let g:vit_num_compilations = 1
-<
-------------------------------------------------------------------------------
-2.9 The *g:vit_max_errors* option (number)
-
-Sets the maximum number of errors that are matched by |g:vit_error_regexp|.
+Sets the maximum number of errors that are matched and displayed when
+compiling using |vit-compiling| features.
 Default value: >
     let g:vit_max_errors = 10
 <
 ------------------------------------------------------------------------------
-2.10 The *g:vit_error_regexp* option (string)
-
-Sets the regular expression that is used to match error output in a .log file
-generated by compiling the current buffer using |g:vit_compiler|. This matches
-errors in the form of 'filename:line:error message' when using the flag
-'-file-line-error' in LaTeX compilers. This value may need to be changed
-depending on the options your |g:vit_compiler| supports.
-Default value: >
-    let g:vit_error_regexp =
-	\ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$'
-<
-------------------------------------------------------------------------------
-2.11 The *g:vit_jump_chars* option (list of strings)
+2.g The *g:vit_jump_chars* option (list of strings)
 
 Sets the characters that are considered when using the smart-move right
 feature of ViT (see |i_<S-Tab>|). The priority of the character is the
@@ -148,7 +119,7 @@ Default value: >
     let g:vit_jump_chars = [' ', '(', '[', '{']
 <
 ------------------------------------------------------------------------------
-2.12 The *g:vit_template_remove_on_abort* option (boolean)
+2.h The *g:vit_template_remove_on_abort* option (boolean)
 
 Sets whether or not templates with template arguments are removed again upon
 aborting them (i.e. leaving an argument blank).
@@ -156,48 +127,14 @@ Default value: >
     let g:vit_template_remove_on_abort = 1
 <
 ------------------------------------------------------------------------------
-2.13 The *g:vit_comment_line* option (string)
+2.i The *g:vit_comment_line* option (string)
 
 Sets what string to use for full-line comment separators.
 Default value: >
     let g:vit_comment_line = '% '.repeat('~', 70)
 <
 ------------------------------------------------------------------------------
-2.14 The *g:vit_static_commands* option
-	(dict of string -> list of strings and dicts)
-
-Sets the commands and templates that are accessible to autocompletion in the
-entire Vim instance. Each key is a 'class' (see |vit-scanning| for more info)
-mapping to a list of completion option item strings or dicts. This value is
-copied from when adding new commands to the global 'g:vit_commands' cache.
-
-Per default, this dict is populated for the key 'latex' by reading from a file
-called 'latex_commands.txt' which has one command per line, with optional
-empty lines. One can replace this file and place it anywhere in the
-'runtimepath' of Vim to use a different set of global static completion items.
-Default value: >
-    try
-        let g:vit_static_commands = {
-	    \ 'latex': readfile(findfile('latex_commands.txt', &runtimepath))
-	    \ }
-    catch
-	let g:vit_static_commands = {}
-    endtry
-<
-------------------------------------------------------------------------------
-2.15 The *g:vit_includes* option (list of strings)
-
-Sets the currently active 'classes' for the current buffer when used as
-'b:vit_includes' variable, and sets the default active 'classes' for new
-buffers when set as global variable 'g:vit_includes'. The default value of
-this option makes it so that the commands read in by |g:vit_static_commands|'s
-default value are accessible by default in all ViT buffers.
-Default value: >
-    let g:vit_includes = ['latex']
-<
-
-------------------------------------------------------------------------------
-2.16 The *g:vit_autosurround_chars* option (list of [string, string] lists)
+2.j The *g:vit_autosurround_chars* option (list of [string, string] lists)
 
 Sets the chars that are automatically surrounded in insert mode. I.e. the
 first index is listened for, and then the second index is inserted after the
@@ -206,6 +143,14 @@ Default value: >
     let g:vit_autosurround_chars = [
 	\ ['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']
 	\ ]
+
+------------------------------------------------------------------------------
+2.k The *g:vit_compile_on_write* option (boolean)
+
+Sets whether or not a buffer should be silently compiled every time it is
+written to the disk.
+Default value: >
+    let g:vit_compile_on_write = 0
 <
 ==============================================================================
 3. Templates					    *vit-templates*
@@ -221,12 +166,11 @@ Templates are defined using the |vit#NewTemplate()| function.
 A new template definition is easy to add, just add a new file containing the
 definitions. For instance, here we will choose 'definitions.vim', which might
 look like this: >
-    call vit#NewTemplate('MyTemplate', 'myclass', '<F6>', 0, 0, [], 0,
+    call vit#NewTemplate('MyTemplate', '<F6>', 0, [], 0,
 			\ ['This is some text'], ['This is some more text'])
 This template can be invoked by typing the <F6> key in insert mode, and it
 will place 'This is some text' above, and 'This is some more text' below the
-cursor line. The template has class 'myclass' so it is only loaded when
-'myclass' is included in the current buffer.
+cursor line.
 Next, add the following |:autocmd| wrapped in an |:augroup| to your |vimrc| to
 load the definitions: >
     augroup MyDefinitions
@@ -257,7 +201,7 @@ being replaced by the template insertion. However one can utilize the regex
 feature to put '#{.*/#1}1'.
 
 						    *vit#NewTemplate()*
-vit#NewTemplate({name}, {class}, {keybind}, {inlinemode}, {completionitem}
+vit#NewTemplate({name}, {keybind}, {inlinemode},
 	       {finalcursoroffset}, {middleindent},
 	       {textbefore}, {textafter} [, {numargs}
 	       [, {argname} [, {argdefault} [, {argcomplete}]]]])
@@ -288,15 +232,14 @@ vit#NewTemplate({name}, {class}, {keybind}, {inlinemode}, {completionitem}
 	    \right)
 <
 	The function will do the following steps, depending on the arguments
-	provided, where steps 3. and 4. depend on {keybind} being non-empty,
-	and {completionitem} being set respectively:
+	provided, where step 2. depends on {keybind} being non-empty:
 	    1. Define the behavior of the command to do:
 		1.a. Insert {textbefore} and {textafter} surrounding the
 		     to-be-surrounded text.
 		2.b. Replace the template arguments if there are any (see
 		     |vit-templates-arguments|).
 	    [2. Set up a keybind for the command with {keybind}.]
-	    [3. Register the command with the |vit-completion| system.]
+	    3. Register a Vim command.
 
 	The {finalcursoroffset} argument must be of form [] for no action,
 	[line] for putting the cursor in the specified line at column 0, or
@@ -314,12 +257,6 @@ vit#NewTemplate({name}, {class}, {keybind}, {inlinemode}, {completionitem}
 	that is inserted before (after) the to-be surrounded text. These
 	may be left empty by passing [].
 
-	The {class} option sets the local class for the completion item. For
-	instance if one registers a template with class 'abc', then this
-	template will only be accessible if 'abc' is included in the current
-	buffer. This value may be set to 'latex' to act as global value. See
-	|vit-scanning| for more details.
-
 	The {numargs}, {argname}, {argdefault}, and {argcomplete} options
 	specify the number of templating arguments (defaults to 0), the
 	optional names of these arguments, their optional default value, and
@@ -335,7 +272,8 @@ on, indicates a template argument insertion spot. When in visual mode, a '*'
 also indicates where surrounded text will go. See |vit-templates-new| for
 information on normal and inline templates.
 
-Keybinds are only accessible in insert or visual mode.
+Keybinds are only accessible in insert or visual mode, and only if the keybinds
+are listed here. All templates are available as commands.
 
 						    *<ViT>*
 <ViT> is a placeholder for the value configured in |g:vit_leader|.
@@ -348,7 +286,8 @@ ViTEnv or <C-E>		    Starts a simple environment template: >
 <						    *vit-enum* *vit-enum-left*
 						    *vit-enum-alph*
 						    *vit-center* *vit-tabular*
-						    *vit-section* *vit-para*
+						    *vit-chapter* *vit-section*
+						    *vit-paragraph*
 ViTEnum or |<ViT>|e	     Same as |vit-env| for enumerate.
 ViTEnumLeft or |<ViT>|E        Same as |vit-enum| for a left-aligned enumerate.
 ViTAlphEnum or |<ViT>|l        Same as |vit-enum| for enumerate of alphabetic
@@ -360,13 +299,14 @@ ViTTabular or |<ViT>|t	     Starts a tabular environment template: >
 			     \begin{tabular}{#1}
 			          *
 			     \end{tabular}
-ViTSection or |<ViT>|s         Starts a section with label template: >
-			     \section{#1}
-			     \label{sec:#2}
-ViTSubSection or |<ViT>|ss     Same as |vit-section| but for subsection.
-ViTSubSubSection or |<ViT>|sss Same as |vit-section| but for subsubsection.
-ViTParagraph or |<ViT>|p       Same as |vit-section| but for paragraph.
-ViSubTParagraph or |<ViT>|pp   Same as |vit-section| but for subparagraph.
+ViTChapter or |<ViT>|C         Starts a chapter with label template: >
+			     \chapter{#1}
+			     \label{sec:#/\s/-/1}
+ViTSection or |<ViT>|s         Same as |vit-chapter| but for section.
+ViTSubSection or |<ViT>|ss     Same as |vit-chapter| but for subsection.
+ViTSubSubSection or |<ViT>|sss Same as |vit-chapter| but for subsubsection.
+ViTParagraph or |<ViT>|p       Same as |vit-chapter| but for paragraph.
+ViSubTParagraph or |<ViT>|pp   Same as |vit-chapter| but for subparagraph.
  						    *vit-math* *vit-gather*
 						    *vit-equation* *vit-align*
 						    *vit-proof* *vit-matrix*
@@ -415,98 +355,21 @@ ViTSup			     Same as |vit-lim| but for the supremum.
 ViTInf			     Same as |vit-lim| but for the infimum.
 
 ==============================================================================
-4. Insert-Mode Completion			    *vit-completion*
-
-Insert-Mode completion works by utilizing the Vim builtin omni-func completion
-(|compl-omni|). The lowest priority items are the ones read in by
-|g:vit_static_commands|, these will be referred to as static completion items.
-Then, there are template completion items, which are defined by the
-|vit#NewTemplate()| function if the {completionitem} option is truthy.
-
-						    *vit-completion-start*
-						    *i_<BSlash>*
-<BSlash>		   Inserts \ and starts insert mode completion.
-|<ViT>|<Space> or |<ViT>||<ViT>| Starts insert mode completion.
-
-						    *vit-completion-template*
-Template completion items behave the same way, but when they are inserted, the
-inserted text will be replaced by the template function specified by the
-internal data of the item. For instance, selecting |vit-frac| by its
-completion item text '\frac{' will start up the template at the current
-position. Instead of inserting '\frac{' it will insert '\frac{*}{}', where '*'
-is the cursor.
-
-New template completion items are suggest to be added by calling
-|vit#NewTemplate()| but it is also possible to manually define them using the
-separate |vit#NewCompletionOption()| function.
-
-						    *vit-scanning*
-ViT provides a multi-threaded Python utility to read and scan LaTeX '.sty',
-'.cls', and '.tex' files. When a new file is scanned, the commands,
-environments, and includes of this file will be stored in a global cache (
-'g:vit_commands' which is a copy of |g:vit_static_commands|). Each buffer has
-a local list of included source files (see |g:vit_includes|) which will
-dictate which of these completion options are usable in the current buffer.
-The name of the source file (referred to as 'class') is used to index these
-includes.
-
-Scanning will occur once when setting the |filetype-plugin|, and once when
-writing the full buffer. A faster, less thorough scan is performed each time a
-change is made to the currently loaded buffer. One may also manually scan
-files using the functions |vit#ScanFromBuffer()| and |vit#ScanFromLog()|.
-
-						    *vit#ScanFromBuffer()*
-vit#ScanFromBuffer({buf}, {cwd})
-	This function will do a fast scan of the buffer {buf} with the working
-	directory {cwd}. The operation will only look at the contents of the
-	current buffer and no other source files. No information is removed
-	from either the include list or the global command cache. This enables
-	the quick scanning of newly written commands without slowing down
-	editing.
-
-						    *vit#ScanFromLog()*
-vit#ScanFromLog({buf}, {cwd})
-	This function will do a thorough scan of the file of {buf} and its
-	direct dependencies with the working directory {cwd}. To do so, the
-	file {buf} must have been compiled at least once to generate a '.log'
-	file. If this file was not created or cannot be found, this scan will
-	fail.
-
-	This function updates the include list of {buf} and modifies the
-	global command cache by repopulating the 'class' keys which have been
-	newly read in to keep the document and any dependencies up-to-date.
-
-						    *vit#NewCompletionOption()*
-vit#NewCompletionOption({name}, {class} [, {command}])
-	This function adds a new item for ViT's insert-mode completion.
-
-	The argument {name} will show up in the popup menu to be selected.
-
-	The argument {class} determines which local class this completion
-	option will be a part of. Set to 'latex' to act as global option.
-	See |vit-scanning|.
-
-	The argument {command} is the command that will be called to set the
-	text to be inserted instead of {name} directly. It must be publicly
-	accessible. If {command} is '', the default value, it will simply act
-	like a regular insert mode completion item.
-
-==============================================================================
-5. Compiling					    *vit-compiling*
+4. Compiling					    *vit-compiling*
 
 ViT provides a command for compiling the current buffer with a globally
-specified compiler (|g:vit_compiler|) with globally specified compiler flags
-(|g:vit_compiler_flags|). These variables both contain an array of two
-strings, where the first string is used for the terminal version of
-|:ViTCompile|, and the second index is used for the |job| version of
-|:ViTCompile|. It then reads the log file, if it can be found, to show signs
-for errors and output a status message for the compilation. Finally, there is
-a |g:vit_num_compilations| variable which sets the number of times a file is
-compiled at once.
+specified compiler (|g:vit_compiler|) with globally specified compiler flags,
+error parsing reg-ex, and number of repeated compilations. ViT can follow file
+hierarchies and either use the global value of the variable mentioned, or a
+custom per-buffer variable b:vit_compiler, which is usually set using the
+|vit-modeline| feature.
 
 ViT also sets up an autocommand, so that writing a buffer will cause it to be
 compiled with |:ViTCompile!| automatically.
+    WARNING: This feature is no longer enabled by default. See
+	     |g:vit_compile_on_write| to turn it back on.
 
+						    *vit-signs*
 						    *vit-compiling-signs*
 The maximum number of error signs depends on |g:vit_max_errors|. When this is
 set to 0, no signs will be displayed. If no log file is found in the
@@ -520,6 +383,7 @@ line.
 
 Additionally, each sign will be visible in the |quickfix| list.
 
+						    *vit-modeline*
 						    *vit-compiling-modeline*
 Sometimes, specific files require a different compiler or different
 compilation settings. For instance, LaTeX files with a bibliography need to be
@@ -530,17 +394,25 @@ a modeline comment to a LaTeX file that ViT may consider when calling the
 As an example, let us look at a file called 'test.tex' with the following
 contents: >
     \documentclass{standalone}
-    % ViT 2x xetex
+    % ViT 2x xetex -
     \begin{document}
 	... something that needs two compilations with xetex
     \end{document}
 As we can see, the compilation-type modeline can be placed anywhere in the
-documents with the general form '% ViT {n}x {compiler} {args...}', where {n}
-denotes how many times to compile, and {compiler} and {args...} specify the
-compiler and its arguments. {compiler} may be set to '-' in which case the
-default compiler is used -- this way arguments can be modified without
-modifying the compiler.
+first few lines of the document with the general form '% ViT {n}x {compiler}
+{args...}', where {n} denotes how many times to compile, and {compiler} and
+{args...} specify the compiler and its arguments.
 
+{args...} can contain one special character, '%', which will be replaced by
+the file to be compiled. This can also be escapes to by using '\%' to get the
+literal '%' in the arguments.
+
+{compiler} and {args...} may be set to '-' in which case the default global
+value is used, otherwise it is assumed to be empty. This way the compiler and
+arguments can be set independently of each other. If both values are empty,
+they are both assumed to be '-'.
+
+						    *vit-included-in*
 Here is another example using both the compilation-type, and the
 included-in-type modeline: >
     \documentclass{standalone}
@@ -554,8 +426,8 @@ This type of modeline follows the general form '% ViT included in {file}',
 where {file} is simply another file which has the current file included. ViT
 will traverse this file-tree starting at the current buffer upwards to reach
 the root file. This is where the compilation will finally take place. Any
-settins set lower in the tree will be applied first and override ones higher
-inthe tree.
+settings set lower in the tree will be applied first and override ones higher
+in the tree.
 
 Note: It is required that the modeline starts with the string '% ViT',
 although with arbitrary white space. Modeline types CANNOT be duplicated and
@@ -570,9 +442,9 @@ A pseudo-BNF specification of this modeline looks as follows: >
 
     Compilation   ::= <Numcomps> ( \s+ <Compiler>
 			( \s+ <CompilerFlags> )? )? ;
-    Numcomps      ::= x\d\+ ;
+    Numcomps      ::= ( 'x' \d\+ ) | ( \d\+ 'x' ) ;
     Compiler      ::= '-' | \w+ ;
-    CompilerFlags ::= .+ ;
+    CompilerFlags ::= '-' | .+ ;
 <
 						    *:ViTCompile*
 						    *:ViTCompile!*
@@ -592,26 +464,22 @@ A pseudo-BNF specification of this modeline looks as follows: >
 !	Shortcut for :ViTCompile!.
 
 						    *vit#Compile()*
-vit#Compile({filepath}, {pwd} [, {silent} [, {flags} [, {numcomp} ]]])
-	This function compiles the source file {filepath} under the working
-	directory {pwd}. The compiler, and the default flags used are both
-	determined by |g:vit_compiler|, and |g:vit_compiler_flags|
-	respectively. These values depend on the value of {silent} as
-	described in |vit-config|.
+vit#Compile({buf} [, {silent} [, {compiler} [, {pwd} ]]])
+	This function compiles the current buffer under the (optionally
+	specified) working directory {pwd}. To compile buffers which are
+	included in other files, ViT uses the |vit-modeline| feature to find
+	the root file.
+
+	The compiler can either be set manually or be determined by the value
+	of |g:vit_compiler|. This way it is possible to manually change the
+	number of compilations, for instance.
 
 	The optional argument {silent} defaults to '', and may be set to '!'
 	to determine whether compilation is started in a terminal (|:term|) or
 	|job| respectively. This is the same as the bang in |:ViTCompile|.
 
-	The optional argument {flags} defaults to '' and can be used to
-	provide any additional flags to the compiler.
-
-	The optional argument {numcomp} defaults to whatever value
-	|g:vit_num_compilations| is set to, and will specify how many times
-	the specified file will be compiled in a row.
-
 ==============================================================================
-6. Smart Typing					    *vit-smart-typing*
+5. Smart Typing					    *vit-smart-typing*
 
 ViT will automatically surround the characters provided by
 |g:vit_autosurround_chars| in insert mode. It also provides a smart-move-right
