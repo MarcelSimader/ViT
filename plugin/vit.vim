@@ -489,7 +489,7 @@ function s:ParseModeline(buf, file, depth, numlines, maxdepth)
         let match = matchlist(line,
                     \ modeline_pre
                     \ .'\%(x\=\(\d\+\)x\=\)'
-                    \ .'\%(\s\+\(\|onwrite\|on-write\|onsave\|on-save\)\)'
+                    \ .'\%(\s\+\(onwrite\|on-write\|onsave\|on-save\)\)\='
                     \ .'\%(\s\+\(\%(\w\+\)\|\-\)'
                         \ .'\%(\s\+\(\%(.\+\)\|-\)\)\=\)\='
                     \ .modeline_suf)
@@ -673,6 +673,9 @@ function vit#Status(buf)
     endfor
     call add(strs, '  }')
     call add(strs, '```')
+    call add(strs, '')
+    call add(strs, 'Compiles on write: '
+                \ .(s:GetVar(buf, 'vit_compile_on_write') ? 'Yes' : 'Nope'))
     call add(strs, '')
 
     call add(strs, '## File Tree:')
