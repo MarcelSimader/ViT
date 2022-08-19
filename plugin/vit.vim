@@ -89,7 +89,7 @@ call s:Config('g:vit_compilation_queued', {-> 0})
 " ~~~~~~~~~~~~~~~~~~~~ SIGNS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-highlight ViTErrorSign ctermfg=Red ctermbg=DarkRed
+highlight ViTErrorSign ctermfg=White ctermbg=DarkRed
 call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -108,6 +108,7 @@ call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 "   [currentcomp,] need not be set by user, internal argument, defaults to v:none
 function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
             \ currentcomp = v:none)
+    " parse modline if this is our first call, just in case it changed
     if a:currentcomp is v:none
         call vit#ParseModeline(a:buf)
     endif
@@ -225,7 +226,7 @@ function vit#CompileCallback(msg, buf, errregex)
                 \   type: 'E', module: bufname(errbuf), valid: 1}],
                 \ 'a')
     " set signs for hover function, format is 'bufnr:line' for keys
-    let g:vit_signs[errbuf..line] = error
+    let g:vit_signs[errbuf.':'.line] = error
 
     " TODO: look into printing status messages for this callback
 endfunction
@@ -255,7 +256,7 @@ endfunction
 
 function vit#CompileSignHover()
     " key format as described in ViT#CompileCallback
-    let err = get(g:vit_signs, bufnr()..line('.'), v:none)
+    let err = get(g:vit_signs, bufnr().':'.line('.'), v:none)
     if !(err is v:none || empty(err))
         echohl ErrorMsg | redraw | echo err | echohl None
     endif
