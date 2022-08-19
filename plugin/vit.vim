@@ -247,10 +247,15 @@ function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, cur
     endif
 
     " handle success message
+    let strexit = string(a:exit)
     if a:exit == 0
-        echohl MoreMsg  | redraw | echo 'Compiled succesfully! Yay!' | echohl None
+        echohl MoreMsg | redraw
+        echo '['.strexit.'] Compiled succesfully! Yay!'
+        echohl None
     else
-        echohl ErrorMsg | redraw | echo 'Compiled with errors... :(' | echohl None
+        echohl ErrorMsg | redraw
+        echo '['.strexit.'] Compiled with errors... :('
+        echohl None
     endif
 endfunction
 
