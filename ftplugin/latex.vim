@@ -71,7 +71,7 @@ if g:vit_enable_keybinds
     nnoremap <buffer> ! <Cmd>noautocmd update \| call vit#Compile(bufname(), "!")<CR>
 
     " cursor move
-    inoremap <buffer> <S-Tab> <Cmd>call vit#SmartMoveCursorRight()<CR>
+    execute 'inoremap <buffer> '.g:vit_leader.'<Tab> <Cmd>call vit#SmartMoveCursorRight()<CR>'
 endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

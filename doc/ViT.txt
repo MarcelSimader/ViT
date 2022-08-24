@@ -492,8 +492,8 @@ Typing any character specified in the first index of a list entry in
 the second entry, and then move the cursor back by one character.
 
 						    *i_<S-Tab>*
-<S-Tab>	    Move the cursor to the nearest found character specified in
-	    |g:vit_jump_chars|, or to the end of the line, in insert mode.
+<ViT><S-Tab>	Move the cursor to the nearest found character specified in
+	        |g:vit_jump_chars|, or to the end of the line, in insert mode.
 
 ==============================================================================
 6. License					    *vit-license*
