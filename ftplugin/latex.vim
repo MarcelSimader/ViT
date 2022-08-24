@@ -114,18 +114,27 @@ augroup END
 if exists('*airline#add_statusline_func')
     " airline is installed
     if !exists('*ViTAirline')
+        function ViTAirlineTeXEnv()
+            let env = trim(vit#CurrentTeXEnv())
+            return (len(env) < 1) ? '' : g:airline_left_alt_sep.' '.env
+        endfunction
+        function ViTAirlineWordcount()
+            let wc = trim(vit#GetWordcount(bufname(), 1))
+            let plural = (str2nr(wc) == 1) ? 'Word' : 'Words'
+            return (len(wc) < 1) ? '' : wc.' '.plural.' '.g:airline_right_alt_sep.' '
+        endfunction
         function ViTAirline(...)
             if &ft == 'latex'
-                let w:airline_section_c = airline#section#create_left(
-                            \ ['file', '%{vit#CurrentTeXEnv()}'])
+                call airline#extensions#append_to_section('c', '%{ViTAirlineTeXEnv()}')
+                call airline#extensions#prepend_to_section('x', '%{ViTAirlineWordcount()}')
             endif
         endfunction
         call airline#add_statusline_func('ViTAirline')
     endif
 else
-    " regular statusline
-    setlocal statusline=%f\ \|\ %{vit#CurrentTeXEnv()}
 endif
+" regular statusline
+setlocal statusline=%f\ \|\ %{vit#GetWordcount(bufname(),1)}\ \|\ %{vit#CurrentTeXEnv()}
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATE DEFINITIONS ~~~~~~~~~~~~~~~~~~~~

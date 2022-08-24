@@ -74,24 +74,32 @@ Default value: >
 <
 ------------------------------------------------------------------------------
 2.e The *g:vit_compiler* option (dict of {{compiler}: str, {flags}: str,
-			      {errregex}: str, {numcomps}: int})
+			      {errregex}: str, {numcomps}: int,
+			      {wordcount}: str})
 
 Sets the command, and other options, that are used to compile files.
 
 {compiler}:
     The program to execute to compile.
 {flags}:
-    The defaults flags to pass to the compiler.
+    The default flags to pass to the compiler. Every occurrence of '%' is
+    replaced with the root TeX file path. If you need to use '%' as character,
+    you can escape it using '\%'.
 {errregex}:
     The string used to parse the compiler output. For more information see
     |vit-signs|.
 {numcomps}:
-    Sets the number of compilations that are performed
-    at once when saving a file or calling |vit#Compile()|. Note that the
-    command |:ViTCompile| does not use this variable, but instead the
-    provided [count].
+    Sets the number of compilations that are performed at once when saving a
+    file or calling |vit#Compile()|. Note that the command |:ViTCompile| does not
+    use this variable, but instead the provided [count].
+{wordcount}:
+    Sets the command to be used to retrieve how many words are in the TeX
+    document. The default uses the 'detex' command to only count words that
+    are actually in the final output. See {flags} for more detail.
+    If you leave this value as empty string or set it to |v:none| it will be
+    ignored and no word counting is going to occur.
 
-For more info on compiling, see |vit-compiling|.
+For more info on compiling, see |vit-compiling| and |vit-modeline|.
 Default value: >
     let g:vit_compiler = {
 	    \ 'compiler': 'pdflatex',
@@ -99,6 +107,7 @@ Default value: >
 	    \ 'errregex':
 		\ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$',
 	    \ 'numcomps': 1,
+	    \ 'wordcount': 'sh -c "detex % | wc -w"',
 	\ }
 >
 ------------------------------------------------------------------------------

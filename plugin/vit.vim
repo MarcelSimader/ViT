@@ -70,6 +70,7 @@ call s:Config('g:vit_compiler', {-> {
 	    \ 'flags': '-interaction=nonstopmode -file-line-error %',
             \ 'errregex': '^\s*\(.\{-}\)\s*:\s*\(\d\+\)\s*:\s*\(.\{-}\)\s*$',
 	    \ 'numcomps': 1,
+            \ 'wordcount': 'sh -c "detex % | wc -w"',
             \ }})
 call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
@@ -108,8 +109,8 @@ call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 "   [currentcomp,] need not be set by user, internal argument, defaults to v:none
 function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
             \ currentcomp = v:none)
-    " parse modline if this is our first call, just in case it changed
     if a:currentcomp is v:none
+        " parse modline if this is our first call, just in case it changed
         call vit#ParseModeline(a:buf)
     endif
     " set up variables
@@ -128,20 +129,28 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
     call SetDictITE('flags')
     call SetDictITE('errregex')
     call SetDictITE('numcomps')
+    call SetDictITE('wordcount')
 
     " make sure compiler is complete
     if cdict['compiler'] is v:none || cdict['flags'] is v:none
                 \ || cdict['errregex'] is v:none || cdict['numcomps'] is v:none
+                \ || cdict['wordcount'] is v:none
         echohl ErrorMsg
         echomsg 'ViT compiler dictionary '.string(cdict).' is incomplete! '
                     \ .'See ":h g:vit_compiler".'
         echohl None
         return
     endif
-    let compiler = cdict['compiler']
-    let flags    = cdict['flags']
-    let errregex = cdict['errregex']
-    let numcomps = cdict['numcomps']
+    let compiler  = cdict['compiler']
+    let flags     = cdict['flags']
+    let errregex  = cdict['errregex']
+    let numcomps  = cdict['numcomps']
+    let wordcount = cdict['wordcount']
+
+    " update word count if this is the first call
+    if a:currentcomp is v:none && !(wordcount is v:none || len(wordcount) < 1)
+        call s:UpdateWordcount(a:buf, wordcount, filepath)
+    endif
 
     " handle status of last compilation and early aborts
     if numcomps <= 0
@@ -364,7 +373,9 @@ function vit#AddParentFile(buf, filename)
 endfunction
 
 function vit#GetRootFile(buf)
-    return get(s:GetRootNode(a:buf), 'data', v:none)
+    let data = get(s:GetRootNode(a:buf), 'data', v:none)
+    if data is v:none | return v:none | endif
+    return s:PrepareFname(data, 1)
 endfunction
 
 function s:GetRootNode(buf)
@@ -565,6 +576,33 @@ function vit#SmartMoveCursorRight(chars = g:vit_jump_chars)
     call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
 endfunction
 
+" Returns the current word count of this buffer. This only works if 's:UpdateWordcount'
+" has been called beforehand, typically when opening or compiling the document.
+function vit#GetWordcount(buf = v:none, suppress = 0)
+    let buf = (a:buf is v:none) ? bufname() : a:buf
+    let wordcount = trim(s:GetVar(buf, 'vit_wordcount', v:none))
+    if wordcount is v:none || len(wordcount) < 1
+        if !a:suppress
+            echohl Error
+            echomsg 'No wordcount found, has the document "'.bufname(buf)
+                        \ .'" been compiled yet?'
+            echohl None
+        endif
+        return ''
+    endif
+    return wordcount
+endfunction
+
+" Updates the current word count of this buffer by running a job.
+function s:UpdateWordcount(buf, wordcount_cmd, filepath)
+    if a:wordcount_cmd is v:none || len(trim(a:wordcount_cmd)) < 1 | return | endif
+
+    let cmd = s:PrepareArgs([a:wordcount_cmd], fnameescape(a:filepath))
+    let b:vit_wordcount = ''
+    let s:wc_currjob = job_start(cmd, {
+                \ 'out_cb': {_, msg -> execute("let b:vit_wordcount .= '".msg."'")}})
+endfunction
+
 " Returns the name of the LaTeX environment the cursor is currently positioned in.
 function vit#CurrentTeXEnv()
     let flags = 'bcnWz'
@@ -572,7 +610,9 @@ function vit#CurrentTeXEnv()
     let [lnum, col] = searchpairpos('\\begin{\_[^@\}#]\+}', '',
                                   \   '\\end{\_[^@\}#]\+}', flags)
     " now we get '\begin{envname}'
-    let envname = get(matchlist(getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1), 1, '')
+    let envname = get(matchlist(
+                \ getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1
+                \ ), 1, '')
     return envname
 endfunction
 
@@ -601,7 +641,7 @@ function s:GetVar(buf, name, default = v:none)
     endif
 endfunction
 
-" Prepare a list of argument strings for a process.
+" Prepare a list of argument strings for a process, replacing '%' with the filepath.
 function s:PrepareArgs(args, filepath)
     " replace % with the file in flags, \\\@<!% means match '%' only if it is not
     " preceeded by '\', so that we can escape % with \%
