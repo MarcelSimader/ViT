@@ -153,12 +153,12 @@ call vit#NewTemplate('ViTAlphEnumLeft', s:_.'L', 0, [1, 5], 4, ['\begin{enumerat
 call vit#NewTemplate('ViTCenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
 call vit#NewTemplate('ViTTabular',      s:_.'t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
 
-call vit#NewTemplate('ViTChapter',       s:_.'C',   0, [3], 0, ['\chapter{#1}',       '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
-call vit#NewTemplate('ViTSection',       s:_.'s',   0, [3], 0, ['\section{#1}',       '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
-call vit#NewTemplate('ViTSubSection',    s:_.'ss',  0, [3], 0, ['\subsection{#1}',    '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
-call vit#NewTemplate('ViTSubSubSection', s:_.'sss', 0, [3], 0, ['\subsubsection{#1}', '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
-call vit#NewTemplate('ViTParagraph',     s:_.'p',   0, [3], 0, ['\paragraph{#1}',     '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
-call vit#NewTemplate('ViTSubParagraph',  s:_.'pp',  0, [3], 0, ['\subparagraph{#1}',  '\label{sec:#/\s/-/1}'], [''], 1, ['Name: '])
+call vit#NewTemplate('ViTChapter',       s:_.'C',   0, [3], 0, ['\chapter{#1}',       '\label{chap:#/\s/-/1}'],  [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSection',       s:_.'s',   0, [3], 0, ['\section{#1}',       '\label{sec:#/\s/-/1}'],   [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSubSection',    s:_.'ss',  0, [3], 0, ['\subsection{#1}',    '\label{ssec:#/\s/-/1}'],  [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSubSubSection', s:_.'sss', 0, [3], 0, ['\subsubsection{#1}', '\label{sssec:#/\s/-/1}'], [''], 1, ['Name: '])
+call vit#NewTemplate('ViTParagraph',     s:_.'p',   0, [3], 0, ['\paragraph{#1}',     '\label{par:#/\s/-/1}'],   [''], 1, ['Name: '])
+call vit#NewTemplate('ViTSubParagraph',  s:_.'pp',  0, [3], 0, ['\subparagraph{#1}',  '\label{spar:#/\s/-/1}'],  [''], 1, ['Name: '])
 
 " ~~~~~~~~~~ math
 call vit#NewTemplate('ViTEquation', s:_.'q', 0, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'])
