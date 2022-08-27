@@ -319,7 +319,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
             " possibly flip start and end
             if cstart > cend | let [cstart, cend] = [cend, cstart] | endif
         else
-            throw 'Unknown mode "'.a:mode.'".'
+            throw 'ViT: Unknown mode "'.a:mode.'".'
         endif
         " save undo state
         let undostate = undotree()['seq_cur']
@@ -491,11 +491,19 @@ function s:ParseModeline(buf, file, depth, numlines, maxdepth)
             " file
             if !empty(includedin)
                 " get actual path of the file
-                let file = s:PrepareFname(includedin, 1)
-                " modify file tree
-                call vit#AddParentFile(a:buf, file)
-                " parse modeline of includedin file
-                call s:ParseModeline(a:buf, file, a:depth + 1, a:numlines, a:maxdepth)
+                try
+                    let file = s:PrepareFname(includedin, 1)
+                    " modify file tree
+                    call vit#AddParentFile(a:buf, file)
+                    " parse modeline of includedin file
+                    call s:ParseModeline(a:buf, file, a:depth + 1, a:numlines, a:maxdepth)
+                catch /ViT.*/
+                    echohl Error
+                    echomsg 'Unable to handle included-in file "'.includedin.'"! '
+                                \ .'Maybe it does not exist!'
+                    echomsg '-- '.v:exception
+                    echohl None
+                endtry
             endif
             " skip to next line
             continue
@@ -598,9 +606,13 @@ function s:UpdateWordcount(buf, wordcount_cmd, filepath)
     if a:wordcount_cmd is v:none || len(trim(a:wordcount_cmd)) < 1 | return | endif
 
     let cmd = s:PrepareArgs([a:wordcount_cmd], fnameescape(a:filepath))
-    let b:vit_wordcount = ''
-    let s:wc_currjob = job_start(cmd, {
-                \ 'out_cb': {_, msg -> execute("let b:vit_wordcount .= '".msg."'")}})
+    call s:ResetVar(a:buf, 'vit_wordcount', '')
+    " ugly hack function callback, we get the current value and then concat the msg
+    function! s:SetWordcount(msg) closure
+        let vit_wordcount = s:GetVar(a:buf, 'vit_wordcount', '')
+        call setbufvar(a:buf, 'vit_wordcount', vit_wordcount.a:msg)
+    endfunction
+    let s:wc_currjob = job_start(cmd, {'out_cb': {_, msg -> s:SetWordcount(msg)}})
 endfunction
 
 " Returns the name of the LaTeX environment the cursor is currently positioned in.
@@ -677,10 +689,9 @@ function s:PrepareFname(fname, showerror = v:true, path = v:null)
     let tmpfname = fnamemodify(a:fname, ':t')
     let found = findfile(tmpfname, tmpwd)
     if empty(found) || !filereadable(found)
-        if !a:showerror | return | endif
-        echohl ErrorMsg
-        redraw | echomsg 'Unable to locate file "'.tmpfname.'" relative to "'.tmpwd.'"'
-        echohl None
+        if a:showerror
+            throw 'ViT: Unable to locate file "'.a:fname.'" relative to "'.tmpwd.'"'
+        endif
     else
         return fnamemodify(found, ':p')
     endif
