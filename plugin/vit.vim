@@ -409,11 +409,8 @@ endfunction
 " Sets the vit_compiler, vit_num_compilations variable, and what larger file tree this
 " file is included in based on the following syntax:
 "
-"     Modeline      ::= ^ .* '%' \s* 'ViT' \s+ ( <Compilation> | <WriteCompile>
-"                           | <Included> ) \s* $ ;
-"
-"     Included      ::= 'included in' \s+ <File> ;
-"     File          ::= .+ ;
+"     Modeline      ::= ^ <ViTPrefix> \s+ ( <Compilation> | <Included> ) \s* $ ;
+"     ViTPrefix     ::= .* '%' \s* 'ViT'
 "
 "     Compilation   ::= <Numcomps> ( \s+ <OnWrite> )?
 "                           ( \s+ <Compiler> ( \s+ <CompilerFlags> )? )? ;
@@ -421,6 +418,9 @@ endfunction
 "     Numcomps      ::= ( 'x' \d\+ ) | ( \d\+ 'x' ) ;
 "     Compiler      ::= '-' | \w+ ;
 "     CompilerFlags ::= '-' | .+ ;
+"
+"     Included      ::= 'included in' \s+ <File> ;
+"     File          ::= .+ ;
 "
 " For instance ' Something Here % ViT  x2 pdflatex -file-line-error' would be interpreted
 " as having the compilers ['pdflatex', 'pdflatex'] with the arguments ['-file-line-error,

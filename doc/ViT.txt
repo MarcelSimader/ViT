@@ -443,17 +443,19 @@ although with arbitrary white space. Modeline types CANNOT be duplicated and
 will cause an error (e.g. defining two different compilers).
 
 A pseudo-BNF specification of this modeline looks as follows: >
-    Modeline      ::= ^ .* '%' \s* 'ViT' \s+
-			( <Compilation> | <Included> ) \s* $ ;
 
-    Included      ::= 'included in' \s+ <File> ;
-    File          ::= .+ ;
+     Modeline      ::= ^ <ViTPrefix> \s+ ( <Compilation> | <Included> ) \s* $ ;
+     ViTPrefix     ::= .* '%' \s* 'ViT'
 
-    Compilation   ::= <Numcomps> ( \s+ <Compiler>
-			( \s+ <CompilerFlags> )? )? ;
-    Numcomps      ::= ( 'x' \d\+ ) | ( \d\+ 'x' ) ;
-    Compiler      ::= '-' | \w+ ;
-    CompilerFlags ::= '-' | .+ ;
+     Compilation   ::= <Numcomps> ( \s+ <OnWrite> )?
+                           ( \s+ <Compiler> ( \s+ <CompilerFlags> )? )? ;
+     OnWrite       ::= 'onwrite' | 'on-write' | 'onsave' | 'on-save' ;
+     Numcomps      ::= ( 'x' \d\+ ) | ( \d\+ 'x' ) ;
+     Compiler      ::= '-' | \w+ ;
+     CompilerFlags ::= '-' | .+ ;
+
+     Included      ::= 'included in' \s+ <File> ;
+     File          ::= .+ ;
 <
 						    *:ViTCompile*
 						    *:ViTCompile!*
