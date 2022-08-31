@@ -3,7 +3,7 @@ test/
 test*.*
 
 # ignore removal script
-remove_tex_outputs.sh
+remove_tex_outputs*
 
 # ignore all custom 'user' scripts
 user/

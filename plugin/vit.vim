@@ -19,7 +19,7 @@ if !exists('*s:LoadViT')
         " reload scripts
         let start = reltime()
         for file in ['ftdetect/latex.vim', 'ftplugin/latex.vim', 'plugin/vit.vim',
-                    \ 'syntax/latex.vim', 'user/*.vim']
+                    \ 'syntax/latex.vim', 'autoload/*.vim', 'user/*.vim']
             execute 'runtime '.file
         endfor
         echohl StatusLineTerm
@@ -123,7 +123,7 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
     let cdict = {}
     function! SetDictITE(key) closure
         let cdict[a:key] = get(a:compiler, a:key,
-                    \ get(s:GetVar(a:buf, 'vit_compiler'), a:key, v:none))
+                    \ get(vitutil#GetVar(a:buf, 'vit_compiler'), a:key, v:none))
     endfunction
     call SetDictITE('compiler')
     call SetDictITE('flags')
@@ -136,7 +136,7 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
                 \ || cdict['errregex'] is v:none || cdict['numcomps'] is v:none
                 \ || cdict['wordcount'] is v:none
         echohl ErrorMsg
-        echomsg 'ViT compiler dictionary '.string(cdict).' is incomplete! '
+        echomsg 'ViT: compiler dictionary '.string(cdict).' is incomplete! '
                     \ .'See ":h g:vit_compiler".'
         echohl None
         return
@@ -160,7 +160,7 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
     let jobstat = exists('s:vcurrjob') ? job_status(s:currjob) : 'dead'
     if g:vit_is_compiling && jobstat == 'run'
         let g:vit_compilation_queued = 1
-        echomsg 'Compilation for buffer "'.a:buf.'" queued.'
+        echomsg 'ViT: Compilation for buffer "'.a:buf.'" queued.'
         return
     else
         let g:vit_is_compiling = 0
@@ -182,7 +182,7 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
 
     " now we are actually gonna compile! yay
     redraw | echo 'Compiling No. '.currentcomp.' of '.numcomps.'...'
-    let cmd = s:PrepareArgs([compiler, flags], fnameescape(filepath))
+    let cmd = vitutil#PrepareArgs([compiler, flags], fnameescape(filepath))
     if a:silent == '!' || a:silent == '1' || a:silent == 1 || a:silent is v:true
         let s:currjob = job_start(cmd, #{cwd: pwd,
                     \ callback: {_, msg -> vit#CompileCallback(msg, a:buf, errregex)},
@@ -365,7 +365,7 @@ endfunction
 
 function vit#ResetRootFile(buf)
     let buf = bufname(a:buf)
-    call s:ResetVar(buf, 'vit_file_tree', s:MakeFileNode(buf))
+    call vitutil#ResetVar(buf, 'vit_file_tree', s:MakeFileNode(buf))
 endfunction
 
 function vit#AddParentFile(buf, filename)
@@ -375,16 +375,16 @@ endfunction
 function vit#GetRootFile(buf)
     let data = get(s:GetRootNode(a:buf), 'data', v:none)
     if data is v:none | return v:none | endif
-    return s:PrepareFname(data, 1)
+    return vitutil#PrepareFname(data, 1)
 endfunction
 
 function s:GetRootNode(buf)
-    let node = s:GetVar(bufname(a:buf), 'vit_file_tree')
+    let node = vitutil#GetVar(bufname(a:buf), 'vit_file_tree')
     " skip this loop if node is none
     while !(node is v:none) && (len(node['parents']) > 0)
         if len(node['parents']) > 1
             echohl ErrorMsg
-            echomsg 'A ViT file tree node cannot have multiple parents. '
+            echomsg 'ViT: A file tree node cannot have multiple parents. '
                         \ .'Offending node is '.vitnode#ToString(node, 1)
             echohl None
         endif
@@ -392,14 +392,14 @@ function s:GetRootNode(buf)
     endwhile
     if node is v:none
         echohl ErrorMsg
-        echomsg 'This buffer has no root file set. Something went wrong with ViT...'
+        echomsg 'ViT: This buffer has no root file set. Something went wrong with ViT...'
         echohl None
     endif
     return node
 endfunction
 
 function s:MakeFileNode(filename)
-    return vitnode#Node(s:PrepareFname(a:filename, 1))
+    return vitnode#Node(vitutil#PrepareFname(a:filename, 1))
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -449,113 +449,10 @@ function vit#ParseModeline(buf, numlines = 15, maxdepth = 15)
     let buf = bufname(a:buf)
     " reset variables so we don't keep adding onto them when we reload the modelines
     call vit#ResetRootFile(buf)
-    call s:ResetVar(buf, 'vit_compiler')
-    call s:ResetVar(buf, 'vit_compile_on_write')
+    call vitutil#ResetVar(buf, 'vit_compiler')
+    call vitutil#ResetVar(buf, 'vit_compile_on_write')
     " call the work-horse
-    call s:ParseModeline(a:buf, buf, 0, a:numlines, a:maxdepth)
-endfunction
-
-" Recursive work-horse of vit#ParseModeline().
-" Arguments:
-"   buf, the buf to set options in (most likely current buffer)
-"   file, the file to read lines from
-"   depth, the current recursive depth
-"   numlines, the number of lines to read from 'file'
-"   maxdepth, the number of recursive calls to perform before giving up
-function s:ParseModeline(buf, file, depth, numlines, maxdepth)
-    " depth-test
-    if a:depth >= a:maxdepth | return | endif
-    " convenience variables
-    let [modeline_pre, modeline_suf] = ['^.*%\s*ViT\s\+', '\s*$']
-    " make sure we only read each header once
-    let [read_compile, read_included_in] = [0, 0]
-    " read in text-mode so ''
-    for line in readfile(a:file, '', a:numlines)
-        " ~~~~~~~~~~~~~~~~~~~~ up until here pre-order traversal ~~~~~~~~~~~~~~~~~~~~
-        " ~~~~~~~~~~ included-in modeline
-        let match = matchlist(line,
-                    \ modeline_pre
-                    \ .'included in\s\+\(.\+\)'
-                    \ .modeline_suf)
-        if !empty(match)
-            if read_included_in != 0
-                echohl ErrorMsg
-                echomsg 'Found duplicated included-in ViT modeline in line ('.a:file.'):'
-                echomsg '  '.line
-                echohl None
-                break
-            else
-                let read_included_in += 1
-            endif
-            let includedin = match[1]
-            " file
-            if !empty(includedin)
-                " get actual path of the file
-                try
-                    let file = s:PrepareFname(includedin, 1)
-                    " modify file tree
-                    call vit#AddParentFile(a:buf, file)
-                    " parse modeline of includedin file
-                    call s:ParseModeline(a:buf, file, a:depth + 1, a:numlines, a:maxdepth)
-                catch /ViT.*/
-                    echohl Error
-                    echomsg 'Unable to handle included-in file "'.includedin.'"! '
-                                \ .'Maybe it does not exist!'
-                    echomsg '-- '.v:exception
-                    echohl None
-                endtry
-            endif
-            " skip to next line
-            continue
-        endif
-        " ~~~~~~~~~~~~~~~~~~~~ now post-order traversal ~~~~~~~~~~~~~~~~~~~~
-        " ~~~~~~~~~~ compilation modeline
-        let match = matchlist(line,
-                    \ modeline_pre
-                    \ .'\%(x\=\(\d\+\)x\=\)'
-                    \ .'\%(\s\+\(onwrite\|on-write\|onsave\|on-save\)\)\='
-                    \ .'\%(\s\+\(\%(\w\+\)\|\-\)'
-                        \ .'\%(\s\+\(\%(.\+\)\|-\)\)\=\)\='
-                    \ .modeline_suf)
-        if !empty(match)
-            if read_compile != 0
-                echohl ErrorMsg
-                echomsg 'Found duplicated compiler ViT modeline in line ('.a:file.'):'
-                echomsg '  '.line
-                echohl None
-                break
-            else
-                let read_compile += 1
-            endif
-            let [numcomps, onwrite, comp, compflags]
-                    \ = [match[1], match[2], match[3], match[4]]
-            " handle logic where we set both comp and compflags to '-' if they are empty
-            " in case the user wants to just write '% ViT x3' without resetting the
-            " compiler and its flags
-            if empty(comp) && empty(compflags)
-                let [comp, compflags] = ['-', '-']
-            endif
-            let vit_compiler = s:GetVar(a:buf, 'vit_compiler')
-            " num compilations
-            if !empty(numcomps)
-                let vit_compiler['numcomps'] = str2nr(numcomps)
-            endif
-            " on-write
-            if !empty(onwrite)
-                call setbufvar(a:buf, 'vit_compile_on_write', 1)
-            endif
-            " compiler
-            if comp != '-'
-                let vit_compiler['compiler'] = comp
-            endif
-            " compiler flags
-            if compflags != '-'
-                let vit_compiler['flags'] = compflags
-            endif
-            " skip to next line
-            continue
-        endif
-    endfor
+    call vitmodeline#Parse(a:buf, buf, 0, a:numlines, a:maxdepth)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -588,11 +485,11 @@ endfunction
 " has been called beforehand, typically when opening or compiling the document.
 function vit#GetWordcount(buf = v:none, suppress = 0)
     let buf = (a:buf is v:none) ? bufname() : a:buf
-    let wordcount = trim(s:GetVar(buf, 'vit_wordcount', v:none))
+    let wordcount = trim(vitutil#GetVar(buf, 'vit_wordcount', v:none))
     if wordcount is v:none || len(wordcount) < 1
         if !a:suppress
             echohl Error
-            echomsg 'No wordcount found, has the document "'.bufname(buf)
+            echomsg 'ViT: No wordcount found, has the document "'.bufname(buf)
                         \ .'" been compiled yet?'
             echohl None
         endif
@@ -605,11 +502,11 @@ endfunction
 function s:UpdateWordcount(buf, wordcount_cmd, filepath)
     if a:wordcount_cmd is v:none || len(trim(a:wordcount_cmd)) < 1 | return | endif
 
-    let cmd = s:PrepareArgs([a:wordcount_cmd], fnameescape(a:filepath))
-    call s:ResetVar(a:buf, 'vit_wordcount', '')
+    let cmd = vitutil#PrepareArgs([a:wordcount_cmd], fnameescape(a:filepath))
+    call vitutil#ResetVar(a:buf, 'vit_wordcount', '')
     " ugly hack function callback, we get the current value and then concat the msg
     function! s:SetWordcount(msg) closure
-        let vit_wordcount = s:GetVar(a:buf, 'vit_wordcount', '')
+        let vit_wordcount = vitutil#GetVar(a:buf, 'vit_wordcount', '')
         call setbufvar(a:buf, 'vit_wordcount', vit_wordcount.a:msg)
     endfunction
     let s:wc_currjob = job_start(cmd, {'out_cb': {_, msg -> s:SetWordcount(msg)}})
@@ -631,71 +528,6 @@ endfunction
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ MISC UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-" Resets variable 'name' to copy of the global value 'g:name' in buffer 'buf' or to
-" 'default' if global variable is not found.
-function s:ResetVar(buf, name, default = v:none)
-    call setbufvar(bufname(a:buf), a:name,
-                \ exists('g:'.a:name) ? copy(g:{a:name}) : a:default)
-endfunction
-
-" Retrieves the variable 'name' in buffer 'buf', or sets the value to 'default' if it is
-" not found and no global value 'g:name' exists, otherwise set to copy of 'g:name'.
-function s:GetVar(buf, name, default = v:none)
-    let buf = bufname(a:buf)
-    " reset if not found already
-    let bufvar = getbufvar(buf, a:name)
-    if bufvar is v:none
-        call s:ResetVar(buf, a:name, a:default)
-        return getbufvar(buf, a:name)
-    else
-        return bufvar
-    endif
-endfunction
-
-" Prepare a list of argument strings for a process, replacing '%' with the filepath.
-function s:PrepareArgs(args, filepath)
-    " replace % with the file in flags, \\\@<!% means match '%' only if it is not
-    " preceeded by '\', so that we can escape % with \%
-    return substitute(join(a:args, ' '), '\\\@<!%', a:filepath, 'g')
-endfunction
-
-" Same functionality as s:PrepareFname() but applied to a whole list of names.
-function s:PrepareFnames(fnames, showerror = v:true, pwd = v:null)
-    let out = []
-    for fname in a:fnames
-        let newfname = s:PrepareFname(fname, a:showerror, a:pwd)
-        if !empty(newfname) | let out += [newfname] | endif
-    endfor
-    return out
-endfunction
-
-" Make sure file name points to an actually existing file and make the path relative to
-" the given pwd or the cwd if no value is given.
-" Arguments:
-"   fname, a filename to modify
-"   [showerror,] if true, display an error message for an invalid file pointer, otherwise
-"       just siltently ignore the file
-"   [path,] the path to search in if the file is not found immediately, defaults to the
-"       current working directory
-function s:PrepareFname(fname, showerror = v:true, path = v:null)
-    let path = (a:path is v:null) ? getcwd() : a:path
-    if filereadable(a:fname)
-        " nothing needs to be done
-        return a:fname
-    endif
-    " try to find file
-    let tmpwd = fnamemodify(a:fname, ':h')
-    let tmpfname = fnamemodify(a:fname, ':t')
-    let found = findfile(tmpfname, tmpwd)
-    if empty(found) || !filereadable(found)
-        if a:showerror
-            throw 'ViT: Unable to locate file "'.a:fname.'" relative to "'.tmpwd.'"'
-        endif
-    else
-        return fnamemodify(found, ':p')
-    endif
-endfunction
 
 " Opens a read-only status buffer in another window.
 function vit#Status(buf)
@@ -724,14 +556,14 @@ function vit#Status(buf)
     call add(strs, '## Compiler:')
     call add(strs, '```')
     call add(strs, '  {')
-    for [key, value] in items(s:GetVar(buf, 'vit_compiler'))
+    for [key, value] in items(vitutil#GetVar(buf, 'vit_compiler'))
         call add(strs, '    '.string(key).': '.string(value).',')
     endfor
     call add(strs, '  }')
     call add(strs, '```')
     call add(strs, '')
     call add(strs, 'Compiles on write: '
-                \ .(s:GetVar(buf, 'vit_compile_on_write') ? 'Yes' : 'Nope'))
+                \ .(vitutil#GetVar(buf, 'vit_compile_on_write') ? 'Yes' : 'Nope'))
     call add(strs, '')
 
     call add(strs, '## File Tree:')
@@ -746,20 +578,5 @@ function vit#Status(buf)
     " open the buffer, bufnr just to make sure we don't use a name with spaces here
     execute 'sbuffer +setlocal\ buftype=nofile\ readonly\ '
                 \ .'filetype=markdown\ nospell '.bufnr(statbuf)
-endfunction
-
-" Returns a very approximate byte size for a variable.
-function vit#SizeOf(EL)
-    let [t, size] = [type(a:EL), 0]
-    if t is v:t_list
-        for E in a:EL | let size += vit#SizeOf(E) | endfor
-    elseif t is v:t_dict
-        for [K, V] in items(a:EL) | let size += vit#SizeOf(K) + vit#SizeOf(V) | endfor
-    elseif t is v:t_number || t is v:t_string || t is v:t_blob
-        let size += len(a:EL)
-    else
-        let size += 1
-    endif
-    return size
 endfunction
 
