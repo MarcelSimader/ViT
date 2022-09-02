@@ -66,10 +66,10 @@ call s:Config('g:vit_enable_keybinds', {-> 1})
 call s:Config('g:vit_enable_commands', {-> 1})
 call s:Config('g:vit_leader', {-> '<C-@>'})
 call s:Config('g:vit_compiler', {-> {
-	    \ 'compiler': 'pdflatex',
-	    \ 'flags': '-interaction=nonstopmode -file-line-error %',
+            \ 'compiler': 'pdflatex',
+            \ 'flags': '-interaction=nonstopmode -file-line-error %',
             \ 'errregex': '^\s*\(.\{-}\)\s*:\s*\(\d\+\)\s*:\s*\(.\{-}\)\s*$',
-	    \ 'numcomps': 1,
+            \ 'numcomps': 1,
             \ 'wordcount': 'sh -c "detex % | wc -w"',
             \ }})
 call s:Config('g:vit_max_errors', {-> 10})
@@ -83,8 +83,10 @@ call s:Config('g:vit_compile_on_write', {-> 0})
 " TODO: maybe document this
 call s:Config('g:vit_signs', {-> {}})
 call s:Config('g:vit_num_errors', {-> 0})
-call s:Config('g:vit_is_compiling', {-> 0})
-call s:Config('g:vit_compilation_queued', {-> 0})
+call s:Config('g:vit_compiler_ctx', {-> {
+            \ 'is_compiling': 0,
+            \ 'is_queued': 0,
+            \ }})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ SIGNS ~~~~~~~~~~~~~~~~~~~~
@@ -107,48 +109,35 @@ call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
 "       set to the global value g:vit_compiler
 "   [pwd,] manually sets the working path, defaults to current working directory
 "   [currentcomp,] need not be set by user, internal argument, defaults to v:none
-function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
-            \ currentcomp = v:none)
-    if a:currentcomp is v:none
-        " parse modline if this is our first call, just in case it changed
-        call vit#ParseModeline(a:buf)
-    endif
+function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp = v:none)
     " set up variables
     let pwd = (a:pwd is v:none) ? getcwd() : a:pwd
     let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
-    let filepath = vit#GetRootFile(a:buf)
     let firstcall = a:currentcomp is v:none
 
+    " parse modline again just in case it changed
+    if firstcall | call vit#ParseModeline(a:buf) | endif
+    " then get the root file
+    let filepath = vit#GetRootFile(a:buf)
+
     " get from arguments first, then global value, finally resort to v:none
-    let cdict = {}
-    function! SetDictITE(key) closure
-        let cdict[a:key] = get(a:compiler, a:key,
-                    \ get(vitutil#GetVar(a:buf, 'vit_compiler'), a:key, v:none))
+    let vit_compiler = vitutil#GetVar(a:buf, 'vit_compiler')
+    function! GetCompiler(key) closure
+        let result = get(a:compiler, a:key, get(vit_compiler, a:key, v:none))
+        if result is v:none
+            throw 'ViT: Unable to find value for compiler dictionary key "'
+                        \ .a:key.'". See ":h g:vit_compiler" for help.'
+        endif
+        return result
     endfunction
-    call SetDictITE('compiler')
-    call SetDictITE('flags')
-    call SetDictITE('errregex')
-    call SetDictITE('numcomps')
-    call SetDictITE('wordcount')
+    let compiler  = GetCompiler('compiler')
+    let flags     = GetCompiler('flags')
+    let errregex  = GetCompiler('errregex')
+    let numcomps  = GetCompiler('numcomps')
+    let wordcount = GetCompiler('wordcount')
 
-    " make sure compiler is complete
-    if cdict['compiler'] is v:none || cdict['flags'] is v:none
-                \ || cdict['errregex'] is v:none || cdict['numcomps'] is v:none
-                \ || cdict['wordcount'] is v:none
-        echohl ErrorMsg
-        echomsg 'ViT: compiler dictionary '.string(cdict).' is incomplete! '
-                    \ .'See ":h g:vit_compiler".'
-        echohl None
-        return
-    endif
-    let compiler  = cdict['compiler']
-    let flags     = cdict['flags']
-    let errregex  = cdict['errregex']
-    let numcomps  = cdict['numcomps']
-    let wordcount = cdict['wordcount']
-
-    " update word count if this is the first call
-    if a:currentcomp is v:none && !(wordcount is v:none || len(wordcount) < 1)
+    " update word count if this is the first call and we have a command set
+    if firstcall && !(wordcount is v:none) && len(wordcount) > 0
         call s:UpdateWordcount(a:buf, wordcount, filepath)
     endif
 
@@ -158,16 +147,16 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
     endif
     " if no job has been created we can assume that it is dead (see :h job_status())
     let jobstat = exists('s:vcurrjob') ? job_status(s:currjob) : 'dead'
-    if g:vit_is_compiling && jobstat == 'run'
-        let g:vit_compilation_queued = 1
+    if g:vit_compiler_ctx['is_compiling'] && jobstat == 'run'
+        let g:vit_compiler_ctx['is_queued'] = 1
         echomsg 'ViT: Compilation for buffer "'.a:buf.'" queued.'
         return
     else
-        let g:vit_is_compiling = 0
+        let g:vit_compiler_ctx['is_compiling'] = 0
         " if this is the first call to this function, we also want to reset the
-        " 'compilation_queued' variable, since that is the current call
-        if a:currentcomp is v:none
-            let g:vit_compilation_queued = 0
+        " 'compilation_queued' variable, since we are the queued compilation
+        if firstcall
+            let g:vit_compiler_ctx['is_queued'] = 0
         endif
     endif
 
@@ -198,7 +187,7 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none,
         let s:currjob = term_getjob(term_buffer)
     end
 
-    let g:vit_is_compiling = 1
+    let g:vit_compiler_ctx['is_compiling'] = 1
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -241,16 +230,16 @@ function vit#CompileCallback(msg, buf, errregex)
 endfunction
 
 function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, currentcomp)
-    let g:vit_is_compiling = 0
+    let g:vit_compiler_ctx['is_compiling'] = 0
 
     if a:currentcomp < a:numcomps
         " call the function again and return
         call vit#Compile(a:buf, a:silent, a:compiler, a:pwd, a:currentcomp + 1)
         return
     endif
-    if g:vit_compilation_queued
+    if g:vit_compiler_ctx['is_queued']
         " if a compilation was queued, just call that again now and return
-        let g:vit_compilation_queued = 0
+        let g:vit_compiler_ctx['is_queued'] = 0
         call vit#Compile(a:buf, a:silent, a:compiler, a:pwd, v:none)
         return
     endif
