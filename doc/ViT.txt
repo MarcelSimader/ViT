@@ -75,7 +75,7 @@ Default value: >
 ------------------------------------------------------------------------------
 2.e The *g:vit_compiler* option (dict of {{compiler}: str, {flags}: str,
 			      {errregex}: str, {numcomps}: int,
-			      {wordcount}: str})
+			      {statusline}: str})
 
 Sets the command, and other options, that are used to compile files.
 
@@ -92,12 +92,16 @@ Sets the command, and other options, that are used to compile files.
     Sets the number of compilations that are performed at once when saving a
     file or calling |vit#Compile()|. Note that the command |:ViTCompile| does not
     use this variable, but instead the provided [count].
-{wordcount}:
-    Sets the command to be used to retrieve how many words are in the TeX
-    document. The default uses the 'detex' command to only count words that
-    are actually in the final output. See {flags} for more detail.
-    If you leave this value as empty string or set it to |v:none| it will be
-    ignored and no word counting is going to occur.
+{statusline}:
+    Sets a command that will be run every time the document is compiled and
+    whose result will be put in the statusline. This has special support for
+    the Airline Vim plugin.
+    The default is set to a command which retrieves how many words are in the
+    TeX document. The default uses the 'detex' command to only count words that
+    are actually in the final output.
+    See {flags} for more detail on how to substitute the file name into the
+    command. If you leave this value as empty string or set it to |v:none| it
+    will be ignored.
 
 For more info on compiling, see |vit-compiling| and |vit-modeline|.
 Default value: >
@@ -107,7 +111,7 @@ Default value: >
 	    \ 'errregex':
 		\ '^\s*\(.\{-1,}\)\s*:\s*\(\d\{-1,}\)\s*:\s*\(.\{-1,}\)\s*$',
 	    \ 'numcomps': 1,
-	    \ 'wordcount': 'sh -c "detex % | wc -w"',
+	    \ 'statusline': 'sh -c "detex % | wc -w"',
 	\ }
 >
 ------------------------------------------------------------------------------

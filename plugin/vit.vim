@@ -68,9 +68,11 @@ call s:Config('g:vit_leader', {-> '<C-@>'})
 call s:Config('g:vit_compiler', {-> {
             \ 'compiler': 'pdflatex',
             \ 'flags': '-interaction=nonstopmode -file-line-error %',
-            \ 'errregex': '^\s*\(.\{-}\)\s*:\s*\(\d\+\)\s*:\s*\(.\{-}\)\s*$',
+            \ 'errregex': '^\s*\([[:fname:]]\{-}\)\s*:'
+            \             .'\s*\(\d\+\)\s*:'
+            \             .'\s*\([[:print:]]\{-}\)\s*$',
             \ 'numcomps': 1,
-            \ 'wordcount': 'sh -c "detex % | wc -w"',
+            \ 'statusline': 'sh -c "detex % | wc -w"',
             \ }})
 call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
@@ -130,15 +132,15 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp 
         endif
         return result
     endfunction
-    let compiler  = GetCompiler('compiler')
-    let flags     = GetCompiler('flags')
-    let errregex  = GetCompiler('errregex')
-    let numcomps  = GetCompiler('numcomps')
-    let wordcount = GetCompiler('wordcount')
+    let compiler   = GetCompiler('compiler')
+    let flags      = GetCompiler('flags')
+    let errregex   = GetCompiler('errregex')
+    let numcomps   = GetCompiler('numcomps')
+    let statusline = GetCompiler('statusline')
 
-    " update word count if this is the first call and we have a command set
-    if firstcall && !(wordcount is v:none) && len(wordcount) > 0
-        call s:UpdateWordcount(a:buf, wordcount, filepath)
+    " update status line if this is the first call and we have a command set
+    if firstcall && !(statusline is v:none) && len(statusline) > 0
+        call s:UpdateStatusline(a:buf, statusline, filepath)
     endif
 
     " handle status of last compilation and early aborts
@@ -206,25 +208,27 @@ function vit#CompileCallback(msg, buf, errregex)
         return
     endif
     let [_, file, line, error; _] = match
-    " assume current file if none given, if buffer is not found, abort
-    let errbuf = bufnr(empty(file) ? a:buf : file)
-    if errbuf == -1
-        return
-    endif
+    " if buffer is not found, returns -1
+    let errbuf = bufnr(file)
     " if no line or error is given, abort
     if empty(line) || empty(error)
         return
     endif
 
-    " place sign (0 for allocating new identifier)
-    call sign_place(0, 'ViT', 'ViTError', errbuf, #{lnum: line})
+    " place sign
+    if errbuf != -1
+        " 0 for allocating new identifier
+        call sign_place(0, 'ViT', 'ViTError', errbuf, #{lnum: line})
+        " set signs for hover function, format is 'bufnr:line' for keys
+        let g:vit_signs[errbuf.':'.line] = error
+    endif
     " place in quickfix list
-    call setqflist([
-                \ #{bufnr: errbuf, lnum: line, text: error,
-                \   type: 'E', module: bufname(errbuf), valid: 1}],
-                \ 'a')
-    " set signs for hover function, format is 'bufnr:line' for keys
-    let g:vit_signs[errbuf.':'.line] = error
+    let qflistdict = {'lnum': line, 'text': error, 'filename': file, 'type': 'E'}
+    if errbuf != -1
+        let qflistdict['bufnr'] = errbuf
+        let qflistdict['module'] = bufname(errbuf)
+    endif
+    call setqflist([qflistdict], 'a')
 
     " TODO: look into printing status messages for this callback
 endfunction
@@ -470,35 +474,36 @@ function vit#SmartMoveCursorRight(chars = g:vit_jump_chars)
     call cursor(lnum, len(cols) > 0 ? min(cols) : 999999)
 endfunction
 
-" Returns the current word count of this buffer. This only works if 's:UpdateWordcount'
-" has been called beforehand, typically when opening or compiling the document.
-function vit#GetWordcount(buf = v:none, suppress = 0)
+" Returns the current ViT statusline of this buffer. This only works if the internal
+" function 's:UpdateStatusline' has been called beforehand, typically when opening or
+" compiling the document.
+function vit#GetStatusline(buf = v:none, suppress = 0)
     let buf = (a:buf is v:none) ? bufname() : a:buf
-    let wordcount = trim(vitutil#GetVar(buf, 'vit_wordcount', v:none))
-    if wordcount is v:none || len(wordcount) < 1
+    let statusline = trim(vitutil#GetVar(buf, 'vit_statusline', v:none))
+    if statusline is v:none || len(statusline) < 1
         if !a:suppress
             echohl Error
-            echomsg 'ViT: No wordcount found, has the document "'.bufname(buf)
+            echomsg 'ViT: No statusline found, has the document "'.bufname(buf)
                         \ .'" been compiled yet?'
             echohl None
         endif
         return ''
     endif
-    return wordcount
+    return statusline
 endfunction
 
-" Updates the current word count of this buffer by running a job.
-function s:UpdateWordcount(buf, wordcount_cmd, filepath)
-    if a:wordcount_cmd is v:none || len(trim(a:wordcount_cmd)) < 1 | return | endif
+" Updates the current ViT statusline of this buffer by running a job.
+function s:UpdateStatusline(buf, cmdpat, filepath)
+    if a:cmdpat is v:none || len(trim(a:cmdpat)) < 1 | return | endif
 
-    let cmd = vitutil#PrepareArgs([a:wordcount_cmd], fnameescape(a:filepath))
-    call vitutil#ResetVar(a:buf, 'vit_wordcount', '')
+    let cmd = vitutil#PrepareArgs([a:cmdpat], fnameescape(a:filepath))
+    call vitutil#ResetVar(a:buf, 'vit_statusline', '')
     " ugly hack function callback, we get the current value and then concat the msg
-    function! s:SetWordcount(msg) closure
-        let vit_wordcount = vitutil#GetVar(a:buf, 'vit_wordcount', '')
-        call setbufvar(a:buf, 'vit_wordcount', vit_wordcount.a:msg)
+    function! s:ConcatStatusline(msg) closure
+        let vit_statusline = vitutil#GetVar(a:buf, 'vit_statusline', '')
+        call setbufvar(a:buf, 'vit_statusline', vit_statusline.a:msg)
     endfunction
-    let s:wc_currjob = job_start(cmd, {'out_cb': {_, msg -> s:SetWordcount(msg)}})
+    let s:sl_currjob = job_start(cmd, {'out_cb': {_, msg -> s:ConcatStatusline(msg)}})
 endfunction
 
 " Returns the name of the LaTeX environment the cursor is currently positioned in.

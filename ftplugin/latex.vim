@@ -118,12 +118,11 @@ if !exists('*ViTStatusTeXEnv')
         return (len(env) < 1) ? sep.'' : sep.env
     endfunction
 endif
-if !exists('*ViTStatusWordcount')
-    function ViTStatusWordcount(airline = 0)
+if !exists('*ViTStatusline')
+    function ViTStatusline(airline = 0)
         let sep = a:airline ? ' '.g:airline_right_alt_sep.' ' : ''
-        let wc = trim(vit#GetWordcount(bufname(), 1))
-        let plural = (str2nr(wc) == 1) ? 'Word' : 'Words'
-        return (len(wc) < 1) ? '...'.sep : wc.' '.plural.sep
+        let statusline = trim(vit#GetStatusline(bufname(), 1))
+        return (len(statusline) < 1) ? '...'.sep : statusline.' '.sep
     endfunction
 endif
 
@@ -135,7 +134,7 @@ if exists('*airline#add_statusline_func')
                 call airline#extensions#append_to_section(
                             \ 'c', '%{ViTStatusTeXEnv(1)}')
                 call airline#extensions#prepend_to_section(
-                            \ 'x', '%{ViTStatusWordcount(1)}')
+                            \ 'x', '%{ViTStatusline(1)}')
             endif
         endfunction
         call airline#add_statusline_func('ViTAirline')
@@ -143,7 +142,7 @@ if exists('*airline#add_statusline_func')
 else
 endif
 " regular statusline
-setlocal statusline=%f\ \|\ %{ViTStatusWordcount(0)}\ >\ %{ViTStatusTeXEnv(0)}
+setlocal statusline=%f\ \|\ %{ViTStatusline(0)}\ >\ %{ViTStatusTeXEnv(0)}
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ TEMPLATE DEFINITIONS ~~~~~~~~~~~~~~~~~~~~
