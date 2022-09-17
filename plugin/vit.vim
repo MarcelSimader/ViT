@@ -72,7 +72,7 @@ call s:Config('g:vit_compiler', {-> {
             \             .'\s*\(\d\+\)\s*:'
             \             .'\s*\([[:print:]]\{-}\)\s*$',
             \ 'numcomps': 1,
-            \ 'statusline': 'sh -c "detex % | wc -w"',
+            \ 'statusline': 'sh -c "echo `detex % | wc -w` W"',
             \ }})
 call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
@@ -502,6 +502,7 @@ function s:UpdateStatusline(buf, cmdpat, filepath)
     function! s:ConcatStatusline(msg) closure
         let vit_statusline = vitutil#GetVar(a:buf, 'vit_statusline', '')
         call setbufvar(a:buf, 'vit_statusline', vit_statusline.a:msg)
+        redrawstatus
     endfunction
     let s:sl_currjob = job_start(cmd, {'out_cb': {_, msg -> s:ConcatStatusline(msg)}})
 endfunction

@@ -104,7 +104,6 @@ augroup ViT
 
     " compile-sign hovering
     autocmd CursorMoved <buffer> :call vit#CompileSignHover()
-
 augroup END
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
