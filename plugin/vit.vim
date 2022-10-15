@@ -88,14 +88,19 @@ call s:Config('g:vit_num_errors', {-> 0})
 call s:Config('g:vit_compiler_ctx', {-> {
             \ 'is_compiling': 0,
             \ 'is_queued': 0,
+            \ 'last_popupid': -1,
             \ }})
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ SIGNS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ SIGNS AND HIGHLIGHTS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 highlight ViTErrorSign ctermfg=White ctermbg=DarkRed
 call sign_define('ViTError', #{text: '!>', texthl: 'ViTErrorSign'})
+
+highlight ViTCompileMsg ctermfg=Blue ctermbg=Black
+highlight ViTSuccMsg ctermfg=Green ctermbg=Black
+highlight ViTErrMsg ctermfg=DarkRed ctermbg=Black
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
@@ -172,7 +177,6 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp 
     endif
 
     " now we are actually gonna compile! yay
-    redraw | echo 'Compiling No. '.currentcomp.' of '.numcomps.'...'
     let cmd = vitutil#PrepareArgs([compiler, flags], fnameescape(filepath))
     if a:silent == '!' || a:silent == '1' || a:silent == 1 || a:silent is v:true
         let s:currjob = job_start(cmd, #{cwd: pwd,
@@ -189,7 +193,24 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp 
         let s:currjob = term_getjob(term_buffer)
     end
 
+    " mark as compiling
     let g:vit_compiler_ctx['is_compiling'] = 1
+    " simple print
+    let compiling_text = 'Compiling No. '.currentcomp.' of '.numcomps.'...'
+    echo compiling_text | redraw
+    " popup notification
+    let win = bufwinid(a:buf)
+    if win != -1
+        let [row, col] = win_screenpos(win)
+        let g:vit_compiler_ctx['last_popupid'] = popup_notification(
+                    \ compiling_text,
+                    \ {
+                        \ 'highlight': 'ViTCompileMsg',
+                        \ 'line': row + 1,
+                        \ 'col': col + 5,
+                        \ 'dragall': 1,
+                    \ })
+    endif
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -258,6 +279,15 @@ function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, cur
         echohl ErrorMsg | redraw
         echo '['.strexit.'] Compiled with errors... :('
         echohl None
+    endif
+    " update last popup
+    if g:vit_compiler_ctx['last_popupid'] != -1
+        call popup_setoptions(
+                    \ g:vit_compiler_ctx['last_popupid'],
+                    \ {
+                        \ 'highlight': (a:exit == 0) ? 'ViTSuccMsg' : 'ViTErrMsg',
+                    \ })
+        let g:vit_compiler_ctx['last_popupid'] = -1
     endif
 endfunction
 
