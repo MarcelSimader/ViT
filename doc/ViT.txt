@@ -298,20 +298,24 @@ ViTEnv or <C-E>		    Starts a simple environment template: >
 			    \end{#1}
 <						    *vit-enum* *vit-enum-left*
 						    *vit-enum-alph*
+						    *vit-itemize*
+						    *vit-description*
 						    *vit-center* *vit-tabular*
-						    *vit-chapter* *vit-section*
-						    *vit-paragraph*
 ViTEnum or |<ViT>|e	     Same as |vit-env| for enumerate.
 ViTEnumLeft or |<ViT>|E        Same as |vit-enum| for a left-aligned enumerate.
 ViTAlphEnum or |<ViT>|l        Same as |vit-enum| for enumerate of alphabetic
 			     list items.
 ViTAlphEnumLeft or |<ViT>|L    Same as |vit-enum-alph| for a left-aligned
 			     enumerate of alphabetic list items.
+ViTItemize or |<ViT>|i	     Same as |vit-env| for itemize.
+ViTDescription or |<ViT>|d     Same as |vit-env| for description.
 ViTCenter or |<ViT>|c	     Same as |vit-env| for center.
 ViTTabular or |<ViT>|t	     Starts a tabular environment template: >
 			     \begin{tabular}{#1}
 			          *
 			     \end{tabular}
+<						    *vit-chapter* *vit-section*
+						    *vit-paragraph*
 ViTChapter or |<ViT>|C         Starts a chapter with label template: >
 			     \chapter{#1}
 			     \label{sec:#/\s/-/1}

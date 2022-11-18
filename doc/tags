@@ -25,6 +25,7 @@ vit-compiling	ViT.txt	/*vit-compiling*
 vit-compiling-modeline	ViT.txt	/*vit-compiling-modeline*
 vit-compiling-signs	ViT.txt	/*vit-compiling-signs*
 vit-config	ViT.txt	/*vit-config*
+vit-description	ViT.txt	/*vit-description*
 vit-enum	ViT.txt	/*vit-enum*
 vit-enum-alph	ViT.txt	/*vit-enum-alph*
 vit-enum-left	ViT.txt	/*vit-enum-left*
@@ -34,6 +35,7 @@ vit-frac	ViT.txt	/*vit-frac*
 vit-gather	ViT.txt	/*vit-gather*
 vit-included-in	ViT.txt	/*vit-included-in*
 vit-intro	ViT.txt	/*vit-intro*
+vit-itemize	ViT.txt	/*vit-itemize*
 vit-license	ViT.txt	/*vit-license*
 vit-lim	ViT.txt	/*vit-lim*
 vit-math	ViT.txt	/*vit-math*

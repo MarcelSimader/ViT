@@ -157,6 +157,8 @@ call vit#NewTemplate('ViTEnum',         s:_.'e', 0, [1, 5], 4, ['\begin{enumerat
 call vit#NewTemplate('ViTEnumLeft',     s:_.'E', 0, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
 call vit#NewTemplate('ViTAlphEnum',     s:_.'l', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'])
 call vit#NewTemplate('ViTAlphEnumLeft', s:_.'L', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'])
+call vit#NewTemplate('ViTItemize',      s:_.'i', 0, [1, 5], 4, ['\begin{itemize}'],                                          ['\end{itemize}'])
+call vit#NewTemplate('ViTDescription',  s:_.'d', 0, [1, 5], 4, ['\begin{description}'],                                      ['\end{description}'])
 call vit#NewTemplate('ViTCenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
 call vit#NewTemplate('ViTTabular',      s:_.'t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
 
