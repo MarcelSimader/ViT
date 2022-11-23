@@ -547,17 +547,19 @@ The following commands are for faster editing in insert mode:
 	        |g:vit_jump_chars|, or to the end of the line, in insert mode.
 
 
+The following commands are for faster editing in normal mode:
+
     WARNING: The following keybinds/commands only succeed if the '\begin{...}'
 	     and '\end{...}' statements are in their own line!
 
 						    *:ViTEnvChange*
-						    *i_CTRL-E_CTRL-C*
+						    *CTRL-E_CTRL-C*
 CTRL-E CTRL-C	Changes the name of the LaTeX environment the cursor is
 		currently positioned in.
 :ViTEnvChange	Command version of |i_CTRL-E_CTRL-C|.
 
 						    *:ViTEnvDelete*
-						    *i_CTRL-E_CTRL-D*
+						    *CTRL-E_CTRL-D*
 CTRL-E CTRL-D	Deletes the LaTeX environment the cursor is currently
 		positioned in. Automatically un-indents the remaining lines.
 :ViTEnvDelete	Command version of |i_CTRL-E_CTRL-D|.
