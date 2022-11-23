@@ -68,3 +68,38 @@ function vitutil#PrepareFname(fname, showerror = v:true, path = v:null)
     endif
 endfunction
 
+" Escapes a string to make it a literal regex match.
+" Arguments:
+"   lit, the string to be matched literally
+" Returns:
+"   a regex to match the input literally
+function vitutil#EscapeRegex(lit)
+    return escape(a:lit, '.*][')
+endfunction
+
+" Returns the name and start position of the LaTeX environment the cursor is currently
+" positioned in.
+" Arguments:
+"   [backwards,] whether to search forwards or backwards, defaults to backwards
+"   [nameregex,] the regular expression that matches an environment name
+" Returns:
+"   a list of form [envname, lnum, col]
+function vitutil#CurrentTeXEnv(backwards = 1, nameregex = '\_[^@\}#]\+')
+    let n = a:nameregex
+    let flags = (a:backwards ? 'b' : '').'cnWz'
+    let [lnum, col] = searchpairpos('\\begin{'.n.'}', '', '\\end{'.n.'}', flags)
+    " now we get '\begin{envname}'
+    let matches = matchlist(getline(lnum), '\\\%(begin\|end\){\('.n.'\)}', col - 1)
+    return [empty(matches) ? '' : get(matches, 1, ''), lnum, col]
+endfunction
+
+" Same as 'vitutil#CurrentTeXEnv' but returns the positions of both the begin and the end
+" statements.
+" Returns:
+"   a list of form [envname, slnum, scol, elnum, ecol]
+function vitutil#CurrentTeXEnvPositions(nameregex = '\_[^@\}#]\+')
+    let [envname0, slnum, scol] = vitutil#CurrentTeXEnv(1, a:nameregex)
+    let [envname1, elnum, ecol] = vitutil#CurrentTeXEnv(0, vitutil#EscapeRegex(envname0))
+    return [envname0, slnum, scol, elnum, ecol]
+endfunction
+

@@ -322,8 +322,10 @@ function vit#NewTemplate(name, keybind, inlinemode,
             \ finalcursoroffset, middleindent, textbefore, textafter,
             \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
     let id = rand(srand())
+    let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
+
     " ~~~~~~~~~~ command function
-    function! ViTNewCommandSub_{id}_{a:name}(mode = 'i', col = 0) range closure
+    function! {funcname}(mode = 'i', col = 0) range closure
         let [textbefore, textafter] = [a:textbefore, a:textafter]
         let [lstart, lend] = [a:firstline, a:lastline]
         " possibly flip start and end
@@ -365,7 +367,6 @@ function vit#NewTemplate(name, keybind, inlinemode,
                     \ a:col + get(a:finalcursoroffset, 1, 0))
     endfunction
 
-    let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
     " ~~~~~~~~~~ keymaps
     if !empty(trim(a:keybind)) && g:vit_enable_keybinds
         execute 'inoremap <buffer> '.a:keybind.' <C-O>:call '
@@ -537,17 +538,41 @@ function s:UpdateStatusline(buf, cmdpat, filepath)
     let s:sl_currjob = job_start(cmd, {'out_cb': {_, msg -> s:ConcatStatusline(msg)}})
 endfunction
 
-" Returns the name of the LaTeX environment the cursor is currently positioned in.
-function vit#CurrentTeXEnv()
-    let flags = 'bcnWz'
-    " search for \begin{...} \end{...}
-    let [lnum, col] = searchpairpos('\\begin{\_[^@\}#]\+}', '',
-                                  \   '\\end{\_[^@\}#]\+}', flags)
-    " now we get '\begin{envname}'
-    let envname = get(matchlist(
-                \ getline(lnum), '\\begin{\(\_[^@\}#]\+\)}', col - 1
-                \ ), 1, '')
-    return envname
+" Deletes a LaTeX environment and re-indents the inside lines. This only works if the
+" \begin and \end statements are on their own line.
+function vit#DeleteCurrentTeXEnv()
+    " save cursor pos for end
+    let [clnum, ccol] = [line('.'), col('.')]
+    let [envname, slnum, scol, elnum, ecol] = vitutil#CurrentTeXEnvPositions()
+    if empty(envname) || (slnum >= elnum) || slnum == 0 | return | endif
+    " get lines and indent them the same as the original first line
+    let sindent = indent(slnum)
+    let lines   = vimse#IndentLines(slice(getline(slnum, elnum), 1, -1), sindent)
+    " delete and then append lines
+    execute 'silent '.slnum.','.elnum.'delete'
+    call append(slnum - 1, lines)
+    " restore cursor pos
+    call cursor(clnum - (clnum > slnum) - (clnum > elnum), ccol)
+endfunction
+
+" Changes a LaTeX environment by converting the environment name to a template variable
+" '#1' and executing a template similar to ':ViTEnvironment'. Only works when \begin and
+" \end statements are on their own line.
+function vit#ChangeCurrentTeXEnv()
+    " save cursor pos for end
+    let [clnum, ccol] = [line('.'), col('.')]
+    let [envname, slnum, scol, elnum, ecol] = vitutil#CurrentTeXEnvPositions()
+    if empty(envname) || (slnum >= elnum) || slnum == 0 | return | endif
+    " replace environment names with '#1'
+    for l in [slnum, elnum]
+        execute 'silent '.l.'substitute/'.vitutil#EscapeRegex(envname).'/#1/'
+    endfor
+    " disable highlighting just in case
+    noh
+    " now do templating with those #1s
+    call vimse#TemplateString(slnum, elnum, scol, ecol, 1, ['Name: '])
+    " restore cursor pos
+    call cursor(clnum, ccol)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

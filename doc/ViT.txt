@@ -21,7 +21,9 @@ ViT						    *vit* *vit-toc*
     3.a Definition of new Templates		    |vit-templates-new|
     3.b Builtin Templates			    |vit-templates-builtin|
 4. Compiling					    |vit-compiling|
-5. Smart Typing					    |vit-smart-typing|
+5. Editing Improvements				    |vit-editing|
+    5.a Smart Typing				    |vit-smart-typing|
+    5.b Structural Editing			    |vit-structural-editing|
 6. License					    |vit-license|
 
 ==============================================================================
@@ -308,7 +310,7 @@ ViTAlphEnum or |<ViT>|l        Same as |vit-enum| for enumerate of alphabetic
 ViTAlphEnumLeft or |<ViT>|L    Same as |vit-enum-alph| for a left-aligned
 			     enumerate of alphabetic list items.
 ViTItemize or |<ViT>|i	     Same as |vit-env| for itemize.
-ViTDescription or |<ViT>|d     Same as |vit-env| for description.
+ViTDescription or |<ViT>|d   Same as |vit-env| for description.
 ViTCenter or |<ViT>|c	     Same as |vit-env| for center.
 ViTTabular or |<ViT>|t	     Starts a tabular environment template: >
 			     \begin{tabular}{#1}
@@ -498,7 +500,10 @@ vit#Compile({buf} [, {silent} [, {compiler} [, {pwd} ]]])
 	|job| respectively. This is the same as the bang in |:ViTCompile|.
 
 ==============================================================================
-5. Smart Typing					    *vit-smart-typing*
+5. Editing Improvements				    *vit-editing*
+
+------------------------------------------------------------------------------
+5.a Smart Typing				    *vit-smart-typing*
 
 ViT will automatically surround the characters provided by
 |g:vit_autosurround_chars| in insert mode. It also provides a smart-move-right
@@ -510,9 +515,31 @@ Typing any character specified in the first index of a list entry in
 |g:vit_autosurround_chars| will insert the first index of the list entry, then
 the second entry, and then move the cursor back by one character.
 
+
+------------------------------------------------------------------------------
+5.b Structural Editing				    *vit-structural-editing*
+
+The following commands are for faster editing in insert mode:
+
 						    *i_<S-Tab>*
 <ViT><S-Tab>	Move the cursor to the nearest found character specified in
 	        |g:vit_jump_chars|, or to the end of the line, in insert mode.
+
+
+    WARNING: The following keybinds/commands only succeed if the '\begin{...}'
+	     and '\end{...}' statements are in their own line!
+
+						    *:ViTEnvChange*
+						    *i_CTRL-E_CTRL-C*
+CTRL-E CTRL-C	Changes the name of the LaTeX environment the cursor is
+		currently positioned in.
+:ViTEnvChange	Command version of |i_CTRL-E_CTRL-C|.
+
+						    *:ViTEnvDelete*
+						    *i_CTRL-E_CTRL-D*
+CTRL-E CTRL-D	Deletes the LaTeX environment the cursor is currently
+		positioned in. Automatically un-indents the remaining lines.
+:ViTEnvDelete	Command version of |i_CTRL-E_CTRL-D|.
 
 ==============================================================================
 6. License					    *vit-license*

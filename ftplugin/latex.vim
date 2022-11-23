@@ -66,6 +66,10 @@ if g:vit_enable_keybinds
     endfor
     unlet s:char
 
+    " environment actions
+    nnoremap <buffer> <C-E>d <Cmd>ViTEnvDelete<CR>
+    nnoremap <buffer> <C-E>c <Cmd>ViTEnvChange<CR>
+
     " quick compiling
     nnoremap <buffer> " <Cmd>noautocmd update \| call vit#Compile(bufname())<CR>
     nnoremap <buffer> ! <Cmd>noautocmd update \| call vit#Compile(bufname(), "!")<CR>
@@ -82,6 +86,10 @@ if g:vit_enable_commands
     command -buffer -bang -count=1 ViTCompile
                 \ noautocmd update
                 \ | call vit#Compile(bufname(), '<bang>', {'numcomps': <count>})
+
+    " environment actions
+    command -buffer ViTEnvDelete :call vit#DeleteCurrentTeXEnv()
+    command -buffer ViTEnvChange :call vit#ChangeCurrentTeXEnv()
 
     command -buffer ViTStatus :call vit#Status(bufname())
 endif
@@ -113,7 +121,7 @@ augroup END
 if !exists('*ViTStatusTeXEnv')
     function ViTStatusTeXEnv(airline = 0)
         let sep = a:airline ? g:airline_left_alt_sep.' ' : ''
-        let env = trim(vit#CurrentTeXEnv())
+        let env = trim(get(vitutil#CurrentTeXEnv(), 0, ''))
         return (len(env) < 1) ? sep.'' : sep.env
     endfunction
 endif

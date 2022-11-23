@@ -1,5 +1,7 @@
 :ViTCompile	ViT.txt	/*:ViTCompile*
 :ViTCompile!	ViT.txt	/*:ViTCompile!*
+:ViTEnvChange	ViT.txt	/*:ViTEnvChange*
+:ViTEnvDelete	ViT.txt	/*:ViTEnvDelete*
 <ViT>	ViT.txt	/*<ViT>*
 ViT.txt	ViT.txt	/*ViT.txt*
 g:vit_autosurround_chars	ViT.txt	/*g:vit_autosurround_chars*
@@ -14,6 +16,8 @@ g:vit_leader	ViT.txt	/*g:vit_leader*
 g:vit_max_errors	ViT.txt	/*g:vit_max_errors*
 g:vit_template_remove_on_abort	ViT.txt	/*g:vit_template_remove_on_abort*
 i_<S-Tab>	ViT.txt	/*i_<S-Tab>*
+i_CTRL-E_CTRL-C	ViT.txt	/*i_CTRL-E_CTRL-C*
+i_CTRL-E_CTRL-D	ViT.txt	/*i_CTRL-E_CTRL-D*
 vit	ViT.txt	/*vit*
 vit#Compile()	ViT.txt	/*vit#Compile()*
 vit#NewTemplate()	ViT.txt	/*vit#NewTemplate()*
@@ -26,6 +30,7 @@ vit-compiling-modeline	ViT.txt	/*vit-compiling-modeline*
 vit-compiling-signs	ViT.txt	/*vit-compiling-signs*
 vit-config	ViT.txt	/*vit-config*
 vit-description	ViT.txt	/*vit-description*
+vit-editing	ViT.txt	/*vit-editing*
 vit-enum	ViT.txt	/*vit-enum*
 vit-enum-alph	ViT.txt	/*vit-enum-alph*
 vit-enum-left	ViT.txt	/*vit-enum-left*
@@ -51,6 +56,7 @@ vit-section	ViT.txt	/*vit-section*
 vit-signs	ViT.txt	/*vit-signs*
 vit-smart-typing	ViT.txt	/*vit-smart-typing*
 vit-sqrt	ViT.txt	/*vit-sqrt*
+vit-structural-editing	ViT.txt	/*vit-structural-editing*
 vit-sum	ViT.txt	/*vit-sum*
 vit-tabular	ViT.txt	/*vit-tabular*
 vit-templates	ViT.txt	/*vit-templates*
