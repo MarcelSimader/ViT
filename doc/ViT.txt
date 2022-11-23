@@ -20,6 +20,7 @@ ViT						    *vit* *vit-toc*
 3. Templates					    |vit-templates|
     3.a Definition of new Templates		    |vit-templates-new|
     3.b Builtin Templates			    |vit-templates-builtin|
+    3.c Insert-Mode Completion			    |vit-completion|
 4. Compiling					    |vit-compiling|
 5. Editing Improvements				    |vit-editing|
     5.a Smart Typing				    |vit-smart-typing|
@@ -372,6 +373,26 @@ ViTLim			     Starts a limit template: >
 			     \lim_{*}
 ViTSup			     Same as |vit-lim| but for the supremum.
 ViTInf			     Same as |vit-lim| but for the infimum.
+
+------------------------------------------------------------------------------
+3.c Insert-Mode Completion			    *vit-completion*
+
+ViT can show |vit-templates| to the user in an insert-mode completion window
+(see |ins-completion|). The items are displayed as, and matched against the
+first line of their definition. Inline templates have an 'i' visible in the
+completion menu.
+
+|<ViT>|<Space>	    Triggers ViT insert-mode completion.
+|<ViT>||<ViT>|	    -"-
+
+When an item is selected, the corresponding template is executed (e.g. typing
+'\frac{' may bring up the |vit-frac| template). Furthermore, a popup menu next
+to the completion menu shows a preivew of what the full template looks like.
+The template is displayed similarly to the way they are written in
+|vit-templates-builtin|.
+
+To avoid interfering with more advanced LSP completion, this mode of completion
+is not the same as the usual completion accessed using |i_CTRL-X|.
 
 ==============================================================================
 4. Compiling					    *vit-compiling*

@@ -68,6 +68,30 @@ function vitutil#PrepareFname(fname, showerror = v:true, path = v:null)
     endif
 endfunction
 
+" Returns the word the cursor is hovering over along with its columns. 'Word' is broadly
+" used to figure out where to start parsing for auto-completion suggestions. For instance
+" 'This is a test {}\beg' should probably start off at '\'.
+" Arguments:
+"   [word_indicators,] a list of characters that preceed a word
+" Returns:
+"   the word under the cursor and the starting and ending columns as list
+function vitutil#GetWordUnderCursor(
+            \ word_indicators = [' ', '.', ',', ':', '!', '?', '=', '"',
+            \                    '(', ')', ']', '}'])
+    let startcol = col('.') - 1
+    let curline  = getline('.')
+    let column   = startcol
+    " now we go backwards in the line until we find something that
+    " indicates a word is starting
+    while column > 0
+        let curchar = strcharpart(curline, column - 1, 1)
+        if index(a:word_indicators, curchar) != -1 | break | endif
+        let column -= 1
+    endwhile
+    " and that is our position
+    return [strcharpart(curline, column, startcol - column), column, startcol]
+endfunction
+
 " Escapes a string to make it a literal regex match.
 " Arguments:
 "   lit, the string to be matched literally

@@ -48,7 +48,7 @@ let b:undo_ftplugin +=
 " set conceal level
 setlocal conceallevel=0
 " completion options
-setlocal completeopt=menuone,noinsert,noselect
+setlocal completeopt=menuone,noinsert,noselect,popup
 " we have to disable indentline here as this
 " would just break conceallevel
 let b:indentLine_enabled = 0
@@ -65,6 +65,10 @@ if g:vit_enable_keybinds
         endif
     endfor
     unlet s:char
+
+    " insert mode completion
+    execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <Cmd>call vit#Complete()<CR>'
+    execute 'inoremap <buffer> '.g:vit_leader.'<Space> <Cmd>call vit#Complete()<CR>'
 
     " environment actions
     nnoremap <buffer> <C-E>d <Cmd>ViTEnvDelete<CR>
@@ -112,6 +116,10 @@ augroup ViT
 
     " compile-sign hovering
     autocmd CursorMoved <buffer> :call vit#CompileSignHover()
+
+    " completion event handling
+    autocmd CompleteDone <buffer> :call vit#OnComplete()
+
 augroup END
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

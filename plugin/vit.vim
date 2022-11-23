@@ -90,6 +90,15 @@ call s:Config('g:vit_compiler_ctx', {-> {
             \ 'is_queued': 0,
             \ 'last_popupid': -1,
             \ }})
+" This list is filled with dicts of the following form:
+"   {
+"     'name': str,
+"     'keybind': str,
+"     'firstline': str,
+"     'preview': str,
+"     'inlinemode': boolean,
+"   }
+call s:Config('g:vit_templates', {-> []})
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ SIGNS AND HIGHLIGHTS ~~~~~~~~~~~~~~~~~~~~
@@ -367,6 +376,18 @@ function vit#NewTemplate(name, keybind, inlinemode,
                     \ a:col + get(a:finalcursoroffset, 1, 0))
     endfunction
 
+    " ~~~~~~~~~~ save into our list
+    let firstline = get(a:textbefore, 0, '')
+    if len(firstline) > 0
+        let preview = a:inlinemode
+                    \ ? join(a:textbefore, "\n").'*'.join(a:textafter, "\n")
+                    \ : join(a:textbefore + ['<*>'] + a:textafter, "\n")
+        let template_dict = {
+                    \ 'name': a:name, 'keybind': a:keybind, 'firstline': firstline,
+                    \ 'inlinemode': a:inlinemode, 'preview': preview,
+                    \ 'funcname': funcname}
+        call add(g:vit_templates, template_dict)
+    endif
     " ~~~~~~~~~~ keymaps
     if !empty(trim(a:keybind)) && g:vit_enable_keybinds
         execute 'inoremap <buffer> '.a:keybind.' <C-O>:call '
@@ -381,6 +402,58 @@ function vit#NewTemplate(name, keybind, inlinemode,
     endif
     " return function reference for convenience, you're welcome ;>
     return funcref(funcname)
+endfunction
+
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ COMPLETION ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+function vit#Complete()
+    setlocal completeopt+=popup
+    " get suggestions based on typed in word
+    let [typedin, startcol, endcol] = vitutil#GetWordUnderCursor()
+    " in the newer versions of vim 'user_data' can be any type! yay!!!
+    let suggestions = mapnew(g:vit_templates, {_, tdict -> {
+                        \ 'word': tdict['firstline'],
+                        \ 'kind': tdict['inlinemode'] ? 'i' : '',
+                        \ 'info': tdict['preview'],
+                        \ 'user_data': {
+                            \ 'vit': 1,
+                            \ 'startcol': startcol,
+                            \ 'endcol': startcol + strlen(tdict['firstline']),
+                            \ 'funcname': tdict['funcname']
+                            \ },
+                    \ }})
+    let GetSortedSuggestions = {t -> matchfuzzy(suggestions, t, {'key': 'word'})}
+    echomsg typedin
+    let sorted_suggestions = GetSortedSuggestions(typedin)
+    " if the string has a \ in the middle somewhere, cut off that last part and match that
+    " as well
+    if typedin =~ '.\+\\.*'
+        let lastpart = strpart(typedin, strridx(typedin, '\'))
+        let sorted_suggestions += GetSortedSuggestions(lastpart)
+    endif
+    " present suggestions
+    call complete(startcol + 1, sorted_suggestions)
+endfunction
+
+function vit#OnComplete()
+    let completed_item = get(v:completed_item, 0, {})
+    let user_data = get(v:completed_item, 'user_data', {})
+    "check if we should process this at all
+    if !(type(user_data) is v:t_dict) || !has_key(user_data, 'vit')
+        return
+    endif
+    " first of all replace the current line with all its contents but removing the
+    " text inserted during completion
+    let lnum    = line('.')
+    let oldline = getline(lnum)
+    let newline = strpart(oldline, 0, user_data['startcol'])
+                \ .strpart(oldline, user_data['endcol'])
+    call setline(lnum, newline)
+    " now we just call the function we referenced and the templating begins
+    let Function = function(user_data['funcname'])
+    call Function('i', user_data['startcol'] + 1)
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
