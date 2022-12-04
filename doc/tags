@@ -3,9 +3,10 @@
 :ViTEnvChange	ViT.txt	/*:ViTEnvChange*
 :ViTEnvDelete	ViT.txt	/*:ViTEnvDelete*
 <ViT>	ViT.txt	/*<ViT>*
-CTRL-E_CTRL-C	ViT.txt	/*CTRL-E_CTRL-C*
-CTRL-E_CTRL-D	ViT.txt	/*CTRL-E_CTRL-D*
 ViT.txt	ViT.txt	/*ViT.txt*
+ViT_<S-Tab>	ViT.txt	/*ViT_<S-Tab>*
+ViT_CTRL-C	ViT.txt	/*ViT_CTRL-C*
+ViT_CTRL-D	ViT.txt	/*ViT_CTRL-D*
 g:vit_autosurround_chars	ViT.txt	/*g:vit_autosurround_chars*
 g:vit_comment_line	ViT.txt	/*g:vit_comment_line*
 g:vit_compile_on_write	ViT.txt	/*g:vit_compile_on_write*
@@ -17,7 +18,6 @@ g:vit_jump_chars	ViT.txt	/*g:vit_jump_chars*
 g:vit_leader	ViT.txt	/*g:vit_leader*
 g:vit_max_errors	ViT.txt	/*g:vit_max_errors*
 g:vit_template_remove_on_abort	ViT.txt	/*g:vit_template_remove_on_abort*
-i_<S-Tab>	ViT.txt	/*i_<S-Tab>*
 vit	ViT.txt	/*vit*
 vit#Compile()	ViT.txt	/*vit#Compile()*
 vit#NewTemplate()	ViT.txt	/*vit#NewTemplate()*

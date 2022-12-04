@@ -295,10 +295,10 @@ are listed here. All templates are available as commands.
 <ViT> is a placeholder for the value configured in |g:vit_leader|.
 
 						    *vit-env*
-ViTEnv or <C-E>		    Starts a simple environment template: >
-			    \begin{#1}
-				*
-			    \end{#1}
+ViTEnv or CTRL-E	     Starts a simple environment template: >
+			     \begin{#1}
+			         *
+			     \end{#1}
 <						    *vit-enum* *vit-enum-left*
 						    *vit-enum-alph*
 						    *vit-itemize*
@@ -311,7 +311,7 @@ ViTAlphEnum or |<ViT>|l        Same as |vit-enum| for enumerate of alphabetic
 ViTAlphEnumLeft or |<ViT>|L    Same as |vit-enum-alph| for a left-aligned
 			     enumerate of alphabetic list items.
 ViTItemize or |<ViT>|i	     Same as |vit-env| for itemize.
-ViTDescription or |<ViT>|d   Same as |vit-env| for description.
+ViTDescription or |<ViT>|d     Same as |vit-env| for description.
 ViTCenter or |<ViT>|c	     Same as |vit-env| for center.
 ViTTabular or |<ViT>|t	     Starts a tabular environment template: >
 			     \begin{tabular}{#1}
@@ -542,8 +542,8 @@ the second entry, and then move the cursor back by one character.
 
 The following commands are for faster editing in insert mode:
 
-						    *i_<S-Tab>*
-<ViT><S-Tab>	Move the cursor to the nearest found character specified in
+						    *ViT_<S-Tab>*
+|<ViT>|<S-Tab>	Move the cursor to the nearest found character specified in
 	        |g:vit_jump_chars|, or to the end of the line, in insert mode.
 
 
@@ -553,16 +553,16 @@ The following commands are for faster editing in normal mode:
 	     and '\end{...}' statements are in their own line!
 
 						    *:ViTEnvChange*
-						    *CTRL-E_CTRL-C*
-CTRL-E CTRL-C	Changes the name of the LaTeX environment the cursor is
+						    *ViT_CTRL-C*
+|<ViT>|CTRL-C	Changes the name of the LaTeX environment the cursor is
 		currently positioned in.
-:ViTEnvChange	Command version of |i_CTRL-E_CTRL-C|.
+:ViTEnvChange	Command version of |ViT_CTRL-C|.
 
 						    *:ViTEnvDelete*
-						    *CTRL-E_CTRL-D*
-CTRL-E CTRL-D	Deletes the LaTeX environment the cursor is currently
+						    *ViT_CTRL-D*
+|<ViT>|CTRL-D	Deletes the LaTeX environment the cursor is currently
 		positioned in. Automatically un-indents the remaining lines.
-:ViTEnvDelete	Command version of |i_CTRL-E_CTRL-D|.
+:ViTEnvDelete	Command version of |ViT_CTRL-D|.
 
 ==============================================================================
 6. License					    *vit-license*

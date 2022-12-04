@@ -71,8 +71,8 @@ if g:vit_enable_keybinds
     execute 'inoremap <buffer> '.g:vit_leader.'<Space> <Cmd>call vit#Complete()<CR>'
 
     " environment actions
-    nnoremap <buffer> <C-E>d <Cmd>ViTEnvDelete<CR>
-    nnoremap <buffer> <C-E>c <Cmd>ViTEnvChange<CR>
+    execute 'nnoremap <buffer> '.g:vit_leader.'d <Cmd>ViTEnvDelete<CR>'
+    execute 'nnoremap <buffer> '.g:vit_leader.'c <Cmd>ViTEnvChange<CR>'
 
     " quick compiling
     nnoremap <buffer> " <Cmd>noautocmd update \| call vit#Compile(bufname())<CR>
