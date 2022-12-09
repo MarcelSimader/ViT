@@ -68,11 +68,13 @@ if g:vit_enable_keybinds
 
     " insert mode completion
     execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <Cmd>call vit#Complete()<CR>'
-    execute 'inoremap <buffer> '.g:vit_leader.'<Space> <Cmd>call vit#Complete()<CR>'
+    execute 'inoremap <buffer> '.g:vit_leader.'<Space>     <Cmd>call vit#Complete()<CR>'
 
     " environment actions
-    execute 'nnoremap <buffer> '.g:vit_leader.'d <Cmd>ViTEnvDelete<CR>'
-    execute 'nnoremap <buffer> '.g:vit_leader.'c <Cmd>ViTEnvChange<CR>'
+    execute 'nnoremap <buffer> '.g:vit_leader.'d     <Cmd>ViTEnvDelete<CR>'
+    execute 'nnoremap <buffer> '.g:vit_leader.'<C-D> <Cmd>ViTEnvDelete<CR>'
+    execute 'nnoremap <buffer> '.g:vit_leader.'c     <Cmd>ViTEnvChange<CR>'
+    execute 'nnoremap <buffer> '.g:vit_leader.'<C-C> <Cmd>ViTEnvChange<CR>'
 
     " quick compiling
     nnoremap <buffer> " <Cmd>noautocmd update \| call vit#Compile(bufname())<CR>
