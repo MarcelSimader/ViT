@@ -68,6 +68,22 @@ function vitutil#PrepareFname(fname, showerror = v:true, path = v:null)
     endif
 endfunction
 
+" Returns a boolean value indicating whether a file exists or not. Similar to
+" 'vitutil#PrepareFname'.
+" Arguments:
+"   fname, a filename to look for
+"   [path,] the path to search in if the file is not found immediately, defaults to the
+"       current working directory
+function vitutil#FileExists(fname, path = v:null)
+    let path = (a:path is v:null) ? getcwd() : a:path
+    if filereadable(a:fname) | return 1 | endif
+    " try to find file
+    let tmpwd = fnamemodify(a:fname, ':h')
+    let tmpfname = fnamemodify(a:fname, ':t')
+    let found = findfile(tmpfname, tmpwd)
+    return !empty(found) && filereadable(found)
+endfunction
+
 " Returns the word the cursor is hovering over along with its columns. 'Word' is broadly
 " used to figure out where to start parsing for auto-completion suggestions. For instance
 " 'This is a test {}\beg' should probably start off at '\'.

@@ -5,10 +5,10 @@
 <ViT>	ViT.txt	/*<ViT>*
 ViT.txt	ViT.txt	/*ViT.txt*
 ViT_<S-Tab>	ViT.txt	/*ViT_<S-Tab>*
-ViT_C	ViT.txt	/*ViT-C*
+ViT_C	ViT.txt	/*ViT_C*
 ViT_CTRL-C	ViT.txt	/*ViT_CTRL-C*
 ViT_CTRL-D	ViT.txt	/*ViT_CTRL-D*
-ViT_D	ViT.txt	/*ViT-D*
+ViT_D	ViT.txt	/*ViT_D*
 g:vit_autosurround_chars	ViT.txt	/*g:vit_autosurround_chars*
 g:vit_comment_line	ViT.txt	/*g:vit_comment_line*
 g:vit_compile_on_write	ViT.txt	/*g:vit_compile_on_write*
