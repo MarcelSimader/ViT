@@ -73,7 +73,7 @@ Default value: >
 Sets the leader key for keybinds in ViT. See <ViT> in |vit-templates-builtin|
 for example.
 Default value: >
-    let g:vit_leader = '<C-@>'
+    let g:vit_leader = '<C-Space>'
 <
 ------------------------------------------------------------------------------
 2.e The *g:vit_compiler* option (dict of {{compiler}: str, {flags}: str,
