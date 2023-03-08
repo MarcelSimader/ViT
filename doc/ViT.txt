@@ -349,15 +349,15 @@ ViTMatrix or |<ViT>|m	     Same as |vit-env| for matrix: >
 						    *vit-sum* *vit-lim*
 ViTMathMode or |<ViT>|$        Start text math mode template: >
 			     $*$
-ViTParentheses or |<ViT>|1     Starts a left-right parentheses template: >
+ViTParentheses or |<ViT>|(     Starts a left-right parentheses template: >
 			     \left( * \right)
-ViTBrackets or |<ViT>|2        Same as |vit-parentheses| but with brackets ([).
-ViTBraces or |<ViT>|3	     Same as |vit-parentheses| but with braces ({).
-ViTBars or |<ViT>|4	     Same as |vit-parentheses| but with bars (|).
-ViTOverbrace or |<ViT>|<F1>    Starts a overbrace template: >
+ViTBrackets or |<ViT>|[        Same as |vit-parentheses| but with brackets ([).
+ViTBraces or |<ViT>|{	     Same as |vit-parentheses| but with braces ({).
+ViTBars or |<ViT>| |	     Same as |vit-parentheses| but with bars (|).
+ViTOverbrace or |<ViT>|1       Starts a overbrace template: >
 			     \overbrace{*}^{}
-ViTUnderbrace or |<ViT>|<F2>   Same as |vit-overbrace| but with an underbrace.
-ViTBoxed or |<ViT>|<F3>        Starts a boxed template: >
+ViTUnderbrace or |<ViT>|2      Same as |vit-overbrace| but with an underbrace.
+ViTBoxed or |<ViT>|3           Starts a boxed template: >
 			     \boxed{*}
 ViTFrac			     Starts a fraction template: >
 			     \frac{*}{}

@@ -93,7 +93,8 @@ endfunction
 "   the word under the cursor and the starting and ending columns as list
 function vitutil#GetWordUnderCursor(
             \ word_indicators = [' ', '.', ',', ':', '!', '?', '=', '"',
-            \                    '(', ')', ']', '}'])
+            \                    '(', ')', '[', ']', '{', '}'],
+            \ word_indicators_min1 = ['\'])
     let startcol = col('.') - 1
     let curline  = getline('.')
     let column   = startcol
@@ -101,6 +102,7 @@ function vitutil#GetWordUnderCursor(
     " indicates a word is starting
     while column > 0
         let curchar = strcharpart(curline, column - 1, 1)
+        if index(a:word_indicators_min1, curchar) != -1 | let column -= 1 | break | endif
         if index(a:word_indicators, curchar) != -1 | break | endif
         let column -= 1
     endwhile
@@ -136,10 +138,10 @@ endfunction
 " Same as 'vitutil#CurrentTeXEnv' but returns the positions of both the begin and the end
 " statements.
 " Returns:
-"   a list of form [envname, slnum, scol, elnum, ecol]
+"   a list of form [envname, beginl-num, begin-col, e-lnum, e-col]
 function vitutil#CurrentTeXEnvPositions(nameregex = '\_[^@\}#]\+')
-    let [envname0, slnum, scol] = vitutil#CurrentTeXEnv(1, a:nameregex)
+    let [envname0, blnum, bcol] = vitutil#CurrentTeXEnv(1, a:nameregex)
     let [envname1, elnum, ecol] = vitutil#CurrentTeXEnv(0, vitutil#EscapeRegex(envname0))
-    return [envname0, slnum, scol, elnum, ecol]
+    return [envname0, blnum, bcol, elnum, ecol]
 endfunction
 

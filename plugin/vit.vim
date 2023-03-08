@@ -334,7 +334,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
     let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
 
     " ~~~~~~~~~~ command function
-    function! {funcname}(mode = 'i', col = 0) range closure
+    function! {funcname}(mode = 'i', col = 1) range closure
         let [textbefore, textafter] = [a:textbefore, a:textafter]
         let [lstart, lend] = [a:firstline, a:lastline]
         " possibly flip start and end
@@ -346,7 +346,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
         elseif a:mode == 'i' || a:mode == 'V'
             " line insert mode
             let [textbefore, textafter] = [textbefore + [''], [''] + textafter]
-            let [cstart, cend] = [0, 999999]
+            let [cstart, cend] = [1, -1]
         elseif a:mode == 'v'
             " character insert mode
             let [cstart, cend] = [col("'<"), col("'>") + 1]
@@ -364,7 +364,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
         " handle templating
         let result = vimse#TemplateString(lstart,
                     \ lend + len(textbefore) + len(textafter),
-                    \ 0, 999999, a:numargs, a:argname, a:argdefault, a:argcomplete)
+                    \ 0, -1, a:numargs, a:argname, a:argdefault, a:argcomplete)
         " undo and return if result was false
         if !result && g:vit_template_remove_on_abort
             " set to 'undostate' for all other changes
@@ -408,6 +408,7 @@ endfunction
 " ~~~~~~~~~~~~~~~~~~~~ COMPLETION ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+" This function returns the completion results given the current cursor position.
 function vit#Complete()
     setlocal completeopt+=popup
     " get suggestions based on typed in word
@@ -425,7 +426,6 @@ function vit#Complete()
                             \ },
                     \ }})
     let GetSortedSuggestions = {t -> matchfuzzy(suggestions, t, {'key': 'word'})}
-    echomsg typedin
     let sorted_suggestions = GetSortedSuggestions(typedin)
     " if the string has a \ in the middle somewhere, cut off that last part and match that
     " as well
@@ -437,6 +437,8 @@ function vit#Complete()
     call complete(startcol + 1, sorted_suggestions)
 endfunction
 
+" This function is called when a completion is done. It will then determine whether to run
+" a templating function or not.
 function vit#OnComplete()
     let completed_item = get(v:completed_item, 0, {})
     let user_data = get(v:completed_item, 'user_data', {})
