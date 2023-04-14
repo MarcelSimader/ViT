@@ -80,6 +80,7 @@ if g:vit_enable_keybinds
     execute 'nnoremap <buffer> '.g:vit_leader.'<C-D> <Cmd>ViTEnvDelete<CR>'
     execute 'nnoremap <buffer> '.g:vit_leader.'c     <Cmd>ViTEnvChange<CR>'
     execute 'nnoremap <buffer> '.g:vit_leader.'<C-C> <Cmd>ViTEnvChange<CR>'
+    execute 'nnoremap <buffer> '.g:vit_leader.'*     <Cmd>ViTEnvChangeStar<CR>'
 
     " quick compiling
     nnoremap <buffer> " <Cmd>noautocmd update \| call vit#Compile(bufname())<CR>
@@ -101,6 +102,7 @@ if g:vit_enable_commands
     " environment actions
     command -buffer ViTEnvDelete :call vit#DeleteCurrentTeXEnv()
     command -buffer ViTEnvChange :call vit#ChangeCurrentTeXEnv()
+    command -buffer ViTEnvChangeStar :call vit#ChangeCurrentTeXEnvStar()
 
     command -buffer ViTStatus :call vit#Status(bufname())
 endif

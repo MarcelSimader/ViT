@@ -1,6 +1,7 @@
 :ViTCompile	ViT.txt	/*:ViTCompile*
 :ViTCompile!	ViT.txt	/*:ViTCompile!*
 :ViTEnvChange	ViT.txt	/*:ViTEnvChange*
+:ViTEnvChangeStar	ViT.txt	/*:ViTEnvChangeStar*
 :ViTEnvDelete	ViT.txt	/*:ViTEnvDelete*
 <ViT>	ViT.txt	/*<ViT>*
 ViT.txt	ViT.txt	/*ViT.txt*
@@ -9,6 +10,7 @@ ViT_C	ViT.txt	/*ViT_C*
 ViT_CTRL-C	ViT.txt	/*ViT_CTRL-C*
 ViT_CTRL-D	ViT.txt	/*ViT_CTRL-D*
 ViT_D	ViT.txt	/*ViT_D*
+ViT_star	ViT.txt	/*ViT_star*
 g:vit_autosurround_chars	ViT.txt	/*g:vit_autosurround_chars*
 g:vit_comment_line	ViT.txt	/*g:vit_comment_line*
 g:vit_compile_on_write	ViT.txt	/*g:vit_compile_on_write*

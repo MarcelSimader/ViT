@@ -650,6 +650,24 @@ function vit#ChangeCurrentTeXEnv()
     call cursor(clnum, ccol)
 endfunction
 
+" Adds or removes a '*' from the environment name.
+function vit#ChangeCurrentTeXEnvStar()
+    let [envname, slnum, scol, elnum, ecol] = vitutil#CurrentTeXEnvPositions()
+    if empty(envname) || (slnum >= elnum) || slnum == 0 | return | endif
+    " either add or remove * based on what is there already
+    let newname = (envname =~ '.\+\*')
+                \ ? strpart(envname, 0, len(envname) - 1)
+                \ : envname.'*'
+    " replace environment names with 'newname'
+    for l in [slnum, elnum]
+        execute 'silent '.l.'substitute'
+                    \ .'/'.vitutil#EscapeRegex(envname)
+                    \ .'/'.vitutil#EscapeRegex(newname).'/'
+    endfor
+    " disable highlighting just in case
+    noh
+endfunction
+
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ MISC UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

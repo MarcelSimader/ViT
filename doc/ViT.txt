@@ -555,16 +555,24 @@ The following commands are for faster editing in normal mode:
 						    *:ViTEnvChange*
 						    *ViT_CTRL-C* *ViT_C*
 |<ViT>|C
-|<ViT>|CTRL-C	Changes the name of the LaTeX environment the cursor is
-		currently positioned in.
-:ViTEnvChange	Command version of |ViT_CTRL-C|.
+|<ViT>|CTRL-C	    Changes the name of the LaTeX environment the cursor is
+		    currently positioned in.
+:ViTEnvChange	    Command version of |ViT_CTRL-C|.
+
+						    *:ViTEnvChangeStar*
+						    *ViT_star*
+|<ViT>|*	    Changes the name of the LaTeX environment to the same name
+		    without a star, if it was there, and with a star, if it was
+		    not. For instance, 'equation*' to 'equation'.
+:ViTEnvChangeStar   Command version of |ViT_star|.
 
 						    *:ViTEnvDelete*
 						    *ViT_CTRL-D* *ViT_D*
 |<ViT>|D
-|<ViT>|CTRL-D	Deletes the LaTeX environment the cursor is currently
-		positioned in. Automatically un-indents the remaining lines.
-:ViTEnvDelete	Command version of |ViT_CTRL-D|.
+|<ViT>|CTRL-D	    Deletes the LaTeX environment the cursor is currently
+		    positioned in. Automatically un-indents the remaining
+		    lines.
+:ViTEnvDelete	    Command version of |ViT_CTRL-D|.
 
 ==============================================================================
 6. License					    *vit-license*
