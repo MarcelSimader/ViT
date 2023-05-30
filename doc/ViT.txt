@@ -315,9 +315,17 @@ ViTDescription or |<ViT>|d     Same as |vit-env| for description.
 ViTCenter or |<ViT>|c	     Same as |vit-env| for center.
 ViTTabular or |<ViT>|t	     Starts a tabular environment template: >
 			     \begin{tabular}{#1}
-			          *
+			         *
 			     \end{tabular}
-<						    *vit-chapter* *vit-section*
+<                                                   *vit-figure*
+ViTFigure or |<ViT>|f	     Starts a figure environment template: >
+			     \begin{figure}[#1]
+			         *
+                                 \caption{#2}
+                                 \label{sec:#/\s/-/2}
+			     \end{figure}
+ViTFigureCenter or |<ViT>|F    Same as *vit-figure* but with centering.
+ 						    *vit-chapter* *vit-section*
 						    *vit-paragraph*
 ViTChapter or |<ViT>|C         Starts a chapter with label template: >
 			     \chapter{#1}

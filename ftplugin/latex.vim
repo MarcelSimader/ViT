@@ -186,6 +186,8 @@ call vit#NewTemplate('ViTItemize',      s:_.'i', 0, [1, 5], 4, ['\begin{itemize}
 call vit#NewTemplate('ViTDescription',  s:_.'d', 0, [1, 5], 4, ['\begin{description}'],                                      ['\end{description}'])
 call vit#NewTemplate('ViTCenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
 call vit#NewTemplate('ViTTabular',      s:_.'t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTFigure',       s:_.'f', 0, [1, 5], 4, ['\begin{figure}[#1]'],                                       ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 3, ['Figure options: ', 'Caption: '], ['h'])
+call vit#NewTemplate('ViTFigureCenter', s:_.'F', 0, [2, 5], 4, ['\begin{figure}[#1]', '    \centering'],                     ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 3, ['Figure options: ', 'Caption: '], ['h'])
 
 call vit#NewTemplate('ViTChapter',       s:_.'C',   0, [3], 0, ['\chapter{#1}',       '\label{chap:#/\s/-/1}'],  [''], 1, ['Name: '])
 call vit#NewTemplate('ViTSection',       s:_.'s',   0, [3], 0, ['\section{#1}',       '\label{sec:#/\s/-/1}'],   [''], 1, ['Name: '])
