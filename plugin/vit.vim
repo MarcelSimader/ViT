@@ -334,7 +334,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
     let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
 
     " ~~~~~~~~~~ command function
-    function! {funcname}(mode = 'i', col = 1) range closure
+    function! {funcname}(mode = 'i') range closure
         let [textbefore, textafter] = [a:textbefore, a:textafter]
         let [lstart, lend] = [a:firstline, a:lastline]
         " possibly flip start and end
@@ -342,7 +342,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
         " setting cursor and line based on mode
         if a:mode == '' || (a:mode == 'i' && a:inlinemode == 1)
             " inline insert mode
-            let [cstart, cend] = [a:col, a:col]
+            let [cstart, cend] = [col('.'), col('.')]
         elseif a:mode == 'i' || a:mode == 'V'
             " line insert mode
             let [textbefore, textafter] = [textbefore + [''], [''] + textafter]
@@ -373,7 +373,7 @@ function vit#NewTemplate(name, keybind, inlinemode,
         endif
         " else set cursor pos in new text
         call cursor(lstart + get(a:finalcursoroffset, 0, 0),
-                    \ a:col + get(a:finalcursoroffset, 1, 0))
+                    \ cstart + get(a:finalcursoroffset, 1, 0))
     endfunction
 
     " ~~~~~~~~~~ save into our list
@@ -391,14 +391,14 @@ function vit#NewTemplate(name, keybind, inlinemode,
     " ~~~~~~~~~~ keymaps
     if !empty(trim(a:keybind)) && g:vit_enable_keybinds
         execute 'inoremap <buffer> '.a:keybind.' <C-O>:call '
-                    \ .funcname.'("i", col("."))<CR>'
+                    \ .funcname.'("i")<CR>'
         execute 'xnoremap <buffer> '.a:keybind.' :call '
-                    \ .funcname.'(visualmode(), col("."))<CR>'
+                    \ .funcname.'(visualmode())<CR>'
     endif
     " ~~~~~~~~~~ commands
     if g:vit_enable_commands
         execute 'command! -buffer -range -nargs=0 '.a:name
-                    \ .' :<line1>,<line2>call '.funcname.'("i", col("."))'
+                    \ .' :<line1>,<line2>call '.funcname.'("i")'
     endif
     " return function reference for convenience, you're welcome ;>
     return funcref(funcname)
