@@ -27,6 +27,7 @@ vit#Compile()	ViT.txt	/*vit#Compile()*
 vit#NewTemplate()	ViT.txt	/*vit#NewTemplate()*
 vit-align	ViT.txt	/*vit-align*
 vit-autosurround	ViT.txt	/*vit-autosurround*
+vit-bold	ViT.txt	/*vit-bold*
 vit-center	ViT.txt	/*vit-center*
 vit-chapter	ViT.txt	/*vit-chapter*
 vit-compiling	ViT.txt	/*vit-compiling*
@@ -36,16 +37,19 @@ vit-completion	ViT.txt	/*vit-completion*
 vit-config	ViT.txt	/*vit-config*
 vit-description	ViT.txt	/*vit-description*
 vit-editing	ViT.txt	/*vit-editing*
+vit-emphasize	ViT.txt	/*vit-emphasize*
 vit-enum	ViT.txt	/*vit-enum*
 vit-enum-alph	ViT.txt	/*vit-enum-alph*
 vit-enum-left	ViT.txt	/*vit-enum-left*
 vit-env	ViT.txt	/*vit-env*
 vit-equation	ViT.txt	/*vit-equation*
 vit-figure	ViT.txt	/*vit-figure*
+vit-figure	ViT.txt	/*vit-figure*
 vit-frac	ViT.txt	/*vit-frac*
 vit-gather	ViT.txt	/*vit-gather*
 vit-included-in	ViT.txt	/*vit-included-in*
 vit-intro	ViT.txt	/*vit-intro*
+vit-italics	ViT.txt	/*vit-italics*
 vit-itemize	ViT.txt	/*vit-itemize*
 vit-license	ViT.txt	/*vit-license*
 vit-lim	ViT.txt	/*vit-lim*

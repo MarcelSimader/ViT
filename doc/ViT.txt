@@ -204,17 +204,16 @@ to {numargs} (see |vit#NewTemplate()|) but each template placeholder may be put
 in as many lines as many times as desired. For an example, see |vit-env|.
 
 A more advanced feature is to use |regex| replacements inside the template
-placeholders. The syntax for this looks as follows: '#{pat/sub}n', where 'pat'
+placeholders. The syntax for this looks as follows: '#/pat/sub/n', where 'pat'
 is the pattern to match, 'sub' is the substitution text, and 'n' is the number
 of the replacement input. This way a template could contain both '#1', and
-'#{samham/spamham}1'. When 'samham' is entered by the user, the resulting
+'#/samham/spamham/1'. When 'samham' is entered by the user, the resulting
 texts will be 'samham', and 'spamham' respectively. By default, an expression
 is matched with the 'g' flag enabled. This will match it as many times as it
 can find 'pat'.
 
-Unfortunately, there is no way yet to include the literal '#1' without it
-being replaced by the template insertion. However one can utilize the regex
-feature to put '#{.*/#1}1'.
+To include a literal '#', simply use '\#'. For instance, to include '#1' in the
+output, write '\#1'.
 
 						    *vit#NewTemplate()*
 vit#NewTemplate({name}, {keybind}, {inlinemode},
@@ -381,6 +380,12 @@ ViTLim			     Starts a limit template: >
 			     \lim_{*}
 ViTSup			     Same as |vit-lim| but for the supremum.
 ViTInf			     Same as |vit-lim| but for the infimum.
+						    *vit-emphasize*
+						    *vit-bold* *vit-italicsa*
+ViTEmphasize or |<ViT>|em      Starts an emphasis template: >
+                             \emph{*}
+<ViTBold or |<ViT>|bo	     Same as |vit-emphasize| but with bold-face.
+ViTItalics or |<ViT>|it	     Same as |vit-emphasize| but with italics.
 
 ------------------------------------------------------------------------------
 3.c Insert-Mode Completion			    *vit-completion*
