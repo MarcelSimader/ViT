@@ -64,7 +64,7 @@ call s:Config('g:vit_enable', {-> 1})
 if !g:vit_enable | finish | endif
 call s:Config('g:vit_enable_keybinds', {-> 1})
 call s:Config('g:vit_enable_commands', {-> 1})
-call s:Config('g:vit_leader', {-> '<C-@>'})
+call s:Config('g:vit_leader', {-> '<C-Space>'})
 call s:Config('g:vit_compiler', {-> {
             \ 'compiler': 'pdflatex',
             \ 'flags': '-interaction=nonstopmode -file-line-error %',
