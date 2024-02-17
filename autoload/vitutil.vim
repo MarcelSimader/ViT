@@ -142,6 +142,6 @@ endfunction
 function vitutil#CurrentTeXEnvPositions(nameregex = '\_[^@\}#]\+')
     let [envname0, blnum, bcol] = vitutil#CurrentTeXEnv(1, a:nameregex)
     let [envname1, elnum, ecol] = vitutil#CurrentTeXEnv(0, vitutil#EscapeRegex(envname0))
-    return [envname0, blnum, bcol, elnum, ecol]
+    return [envname0, blnum, bcol, elnum, ecol + len(envname0) + len('\begin{}') + 1]
 endfunction
 

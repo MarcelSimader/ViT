@@ -381,7 +381,7 @@ ViTLim			     Starts a limit template: >
 ViTSup			     Same as |vit-lim| but for the supremum.
 ViTInf			     Same as |vit-lim| but for the infimum.
 						    *vit-emphasize*
-						    *vit-bold* *vit-italicsa*
+						    *vit-bold* *vit-italics*
 ViTEmphasize or |<ViT>|em      Starts an emphasis template: >
                              \emph{*}
 <ViTBold or |<ViT>|bo	     Same as |vit-emphasize| but with bold-face.

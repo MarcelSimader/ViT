@@ -355,22 +355,17 @@ function vit#NewTemplate(name, keybind, inlinemode,
         else
             throw 'ViT: Unknown mode "'.a:mode.'".'
         endif
-        " save undo state
-        let undostate = undotree()['seq_cur']
         " insert
-        call vimse#SmartSurround(
+        call vimsetext#SmartSurround(
                             \ lstart, lend, cstart, cend,
                             \ textbefore, textafter, a:middleindent)
         " handle templating
-        let result = vimse#TemplateString(lstart,
-                    \ lend + len(textbefore) + len(textafter),
-                    \ 0, -1, a:numargs, a:argname, a:argdefault, a:argcomplete)
+        let result = vimsetemplate#TemplateString(win_getid(),
+                    \ lstart, lend + len(textbefore) + len(textafter),
+                    \ 0, -1, a:numargs, a:argname, a:argdefault, a:argcomplete,
+                    \ v:true, v:true)
         " undo and return if result was false
-        if !result && g:vit_template_remove_on_abort
-            " set to 'undostate' for all other changes
-            " and undo once for this method
-            silent execute 'undo '.undostate | silent undo | return
-        endif
+        if (result == 0) && g:vit_template_remove_on_abort | undo | return | endif
         " else set cursor pos in new text
         call cursor(lstart + get(a:finalcursoroffset, 0, 0),
                     \ cstart + get(a:finalcursoroffset, 1, 0))
@@ -622,7 +617,7 @@ function vit#DeleteCurrentTeXEnv()
     if empty(envname) || (slnum >= elnum) || slnum == 0 | return | endif
     " get lines and indent them the same as the original first line
     let sindent = indent(slnum)
-    let lines   = vimse#IndentLines(slice(getline(slnum, elnum), 1, -1), sindent)
+    let lines   = vimsetext#IndentLines(slice(getline(slnum, elnum), 1, -1), sindent)
     " delete and then append lines
     execute 'silent '.slnum.','.elnum.'delete'
     call append(slnum - 1, lines)
@@ -645,7 +640,10 @@ function vit#ChangeCurrentTeXEnv()
     " disable highlighting just in case
     noh
     " now do templating with those #1s
-    call vimse#TemplateString(slnum, elnum, scol, ecol, 1, ['Name: '])
+    let result = vimsetemplate#TemplateString(win_getid(),
+                \ slnum, elnum, scol, ecol, 1, ['Name: '], [], [], v:true, v:true)
+    " undo this function, in case the user aborted
+    if (result == 0) | undo | endif
     " restore cursor pos
     call cursor(clnum, ccol)
 endfunction

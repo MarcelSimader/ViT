@@ -22,8 +22,8 @@ Some of the main features are:
 Using ``vim-plug`` the process is quite easy, just add this to your ``.vimrc``:
 ```vimscript
 call plug#begin('path-to-plugin-directory')
-Plug 'MarcelSimader/VimSE'
-Plug 'MarcelSimader/ViT'
+Plug 'MarcelSimader/VimSE' #{ tag: 'v1.*' }
+    Plug 'MarcelSimader/ViT'
 call plug#end()
 ```
 ViT depends on the VimSE 'runtime library', so that plugin will need to be installed as
@@ -36,15 +36,15 @@ auto-completion suggestions, and all sorts of other things -- far better than th
 could ever muster on its own. All one needs to do to use it is to include the following
 plugins,
 ```vimscript
-Plug 'MarcelSimader/VimSE'
-Plug 'MarcelSimader/ViT'
+Plug 'MarcelSimader/VimSE' #{ tag: 'v1.*' }
+    Plug 'MarcelSimader/ViT'
 " Base support for LSP servers in Vim.
 Plug 'prabirshrestha/vim-lsp'
-" Provides the ':LspInstallServer' command.
-Plug 'mattn/vim-lsp-settings'
-" Optional, for auto-completion support.
-Plug 'prabirshrestha/asyncomplete.vim'
-Plug 'prabirshrestha/asyncomplete-lsp.vim'
+    " Provides the ':LspInstallServer' command.
+    Plug 'mattn/vim-lsp-settings'
+    " Optional, for auto-completion support.
+    Plug 'prabirshrestha/asyncomplete.vim'
+    Plug 'prabirshrestha/asyncomplete-lsp.vim'
 ```
 and then run the command `:LspInstallServer texlab` (or another LSP server of your
 choice). For odd reasons it is important that you run this command from within a TeX or
