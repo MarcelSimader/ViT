@@ -450,7 +450,7 @@ function vit#OnComplete()
     call setline(lnum, newline)
     " now we just call the function we referenced and the templating begins
     let Function = function(user_data['funcname'])
-    call Function('i', user_data['startcol'] + 1)
+    call Function('i')
 endfunction
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
