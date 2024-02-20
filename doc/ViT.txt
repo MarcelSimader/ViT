@@ -1,7 +1,7 @@
 *ViT.txt*	Plugin for extended LaTeX support in Vim.
-		Last change: 2021 Dec 19
+		Last change: 2024 Feb 20
 
-ViT						    *vit* *vit-toc*
+ViT Version 3.4.1				    *vit* *vit-toc*
 ==============================================================================
 
 1. Introduction					    |vit-intro|

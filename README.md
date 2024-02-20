@@ -1,9 +1,10 @@
 # ViT
 
-ViT is a witty plugin for Vim LaTeX support!  This project is in an incredibly early
-stage, don't rely on it in any way and don't expect anything of it. Changes are made to my
-whim, or vim...  I'll see myself out. But really, this project is basically an efficiency
-tool for myself, so if you want to use it that is on you.
+ViT is a witty plugin for Vim LaTeX support! This project is still in a fairly early
+stage, but it has worked well for me for about two years now. Changes are made to my whim,
+or vim... I'll see myself out. But really, this project started as efficiency tool for
+myself only -- although by now it has became a lot more rounded, and semantic versioning
+is taken quite seriously. Try at your own risk either way!
 
 ## Features
 
