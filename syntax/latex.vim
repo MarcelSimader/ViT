@@ -22,6 +22,17 @@ call TexNewMathZone("SC", "align", 1)
 call TexNewMathZone("SD", "alignat", 1)
 call TexNewMathZone("SE", "multline", 1)
 
+" ~~~~~~~~~~~~~~~~~~~~ Extension for Knitr ~~~~~~~~~~~~~~~~~~~~
+
+if exists('g:vit_enable_knitr') && g:vit_enable_knitr
+    unlet b:current_syntax
+    syntax include @Rlang syntax/r.vim
+    syntax region ViTKnitrReg matchgroup=Delimiter start=/<<[[:ident:]-='", ]*>>=/ end=/@/
+                \ contains=@Rlang containedin=texDocZone
+    syntax region ViTKnitrSexpr matchgroup=Delimiter start=/\\Sexpr{/ end=/}/
+                \ contains=@Rlang containedin=texDocZone,texStatement
+endif
+
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
