@@ -64,6 +64,7 @@ call s:Config('g:vit_enable', {-> 1})
 if !g:vit_enable | finish | endif
 call s:Config('g:vit_enable_keybinds', {-> 1})
 call s:Config('g:vit_enable_commands', {-> 1})
+" TODO: Definitely document this
 call s:Config('g:vit_enable_knitr', {-> 1})
 call s:Config('g:vit_leader', {-> '<C-Space>'})
 call s:Config('g:vit_compiler', {-> {
@@ -79,8 +80,13 @@ call s:Config('g:vit_max_errors', {-> 10})
 call s:Config('g:vit_jump_chars', {-> [' ', '(', '[', '{']})
 call s:Config('g:vit_template_remove_on_abort', {-> 1})
 call s:Config('g:vit_comment_line', {-> '% '.repeat('~', 70)})
+" TODO: Document that this is now a dictionary of lists of items
 call s:Config('g:vit_autosurround_chars', {->
-            \ [['(', ')'], ['[', ']'], ['{', '}'], ['$', '$']]})
+            \ {'(': [['\(', '\)'], ['(', ')']],
+            \  '[': [['\[', '\]'], ['[', ']']],
+            \  '{': [['{', '}']],
+            \  '$': [['$', '$']],
+            \  }})
 call s:Config('g:vit_compile_on_write', {-> 0})
 
 " TODO: maybe document this
@@ -553,6 +559,38 @@ endfunction
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~ TeX UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Handles automatically replicating simple characters sequences, like turning '(' into
+" '(*)' (where * is the cursor position.) Whichever specification is found first is
+" executed, and the function returns the RHS of a mapping.
+" Assumes:
+"   that we are in insert mode when calling this function, and have just typed one of the
+"   characters in the specifications, given as argument 'trigger'
+" Arguments:
+"   buf, the buffer name
+"   trigger, the character we just entered to trigger this function
+"   [chars,] defaults to 'g:vit_autosurround_chars', a dictionary of specifications to
+"       consider, where each value spec is in a list of items of form [entered_char,
+"       closing_char], and each value key is a trigger character
+function vit#AutoSurround(buf, trigger, chars = g:vit_autosurround_chars)
+    const buf = bufname(a:buf)
+    const prefix = strcharpart(get(getbufline(buf, line('.')), 0, ''), 0, col('.') - 1)
+    for spec in get(a:chars, a:trigger, [])
+        if len(spec) == 2
+            " We look behind the cursor position and match it against the 'entered'
+            " character spec. Whichever one fits first will be executed
+            let [entered, closing] = spec
+            let [prefixlen, enteredlen] = [strcharlen(prefix), strcharlen(entered)]
+            if entered == strcharpart(prefix, prefixlen - enteredlen + 1)..a:trigger
+                return strcharpart(entered, max([0, enteredlen - 1]))..closing
+                            \ .."\<C-O>"..strcharlen(closing)..'h'
+            endif
+        else
+            throw 'ViT: Malformed "g:vit_autosurroun_chars" entry "'..s:char..'"'
+        endif
+    endfor
+    return "\<Ignore>"
+endfunction
 
 " Moves cursor to the right to simulate the <Tab> behavior in other IDEs.
 " Arguments:

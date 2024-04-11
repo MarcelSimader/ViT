@@ -64,12 +64,14 @@ let b:indentLine_enabled = 0
 
 if g:vit_enable_keybinds
     " Automatically insert second X and move in the middle X<Cursor>X
-    for s:char in g:vit_autosurround_chars
-        if len(s:char) == 2
-            execute 'inoremap <buffer> '.s:char[0].' '.s:char[0].s:char[1].'<C-O>h'
+    for s:trigger in keys(g:vit_autosurround_chars)
+        if len(s:trigger) < 1
+            throw 'ViT: Empty "g:vit_autosurround_chars" dictionary key character'
         endif
+        execute 'inoremap <buffer> <expr> '..s:trigger..' vit#AutoSurround(bufname()'
+                    \ ..", '"..s:trigger.."')"
     endfor
-    unlet s:char
+    unlet s:trigger
 
     " insert mode completion
     execute 'inoremap <buffer> '.repeat(g:vit_leader, 2).' <Cmd>call vit#Complete()<CR>'
