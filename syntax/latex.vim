@@ -27,12 +27,14 @@ call TexNewMathZone("SE", "multline", 1)
 if exists('g:vit_enable_knitr') && g:vit_enable_knitr
     unlet b:current_syntax
     syntax include @Rlang syntax/r.vim
-    syntax region ViTKnitrReg matchgroup=Delimiter start=/<<[[:ident:]-='", ]*>>=/ end=/\\\@<!@/
+    syntax region ViTKnitrReg matchgroup=Delimiter
+                \ start=/<<[[:ident:]-='",. ]*>>=/ end=/\\\@<!@/
                 \ contains=@Rlang containedin=TOP,@texFoldGroup
-    syntax sync match ViTKnitrRegSync groupthere ViTKnitrReg /<<[[:ident:]-='", ]*>>=/
+    syntax sync match ViTKnitrRegSync groupthere ViTKnitrReg
+                \ /<<[[:ident:]-='",. ]*>>=/
     syntax sync match ViTKnitrRegSync grouphere NONE /\\\@<!@/
     syntax region ViTKnitrSexpr matchgroup=Delimiter start=/\\Sexpr{/ end=/}/
-                \ contains=@Rlang containedin=TOP,@texFoldGroup
+                \ contains=@Rlang containedin=@texFoldGroup,@texMathZones
 endif
 
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
