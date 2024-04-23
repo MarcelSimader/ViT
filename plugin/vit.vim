@@ -324,8 +324,9 @@ endfunction
 "   name, the name of the command to be defined
 "   keybind, the keybind to access this command, or '' for no keybind
 "   inlinemode, '0' for no inline mode, '1' for inline mode
+"           TODO(Marcel): document this change with -1 to 'finalcursoroffset'
 "   finalcursoroffset, the position that the cursor will be set to
-"       upon completing the template
+"       upon completing the template, if column is '-1', place at very end of line
 "   middleindent, the indent of text that the template surrounds in
 "       surround mode
 "   textbefore, an array of lines for the before-text
@@ -374,8 +375,14 @@ function vit#NewTemplate(name, keybind, inlinemode,
         " undo and return if result was false
         if (result == 0) && g:vit_template_remove_on_abort | undo | return | endif
         " else set cursor pos in new text
-        call cursor(lstart + get(a:finalcursoroffset, 0, 0),
-                    \ cstart + get(a:finalcursoroffset, 1, 0))
+        " TODO(Marcel): Document this change as well
+        " if middle indent is used and not 0, but the cursor offset has no column
+        " specified, the default should be the end of the line
+        let [cursorendline, cursorendcol] = [
+                    \ get(a:finalcursoroffset, 0, 0),
+                    \ get(a:finalcursoroffset, 1, (a:middleindent > 0) ? 999999 : 0)]
+        call cursor(lstart + cursorendline,
+                    \ (cursorendcol < 0) ? 999999 : (cstart + cursorendcol))
     endfunction
 
     " ~~~~~~~~~~ save into our list
@@ -457,6 +464,9 @@ function vit#OnComplete()
     call setline(lnum, newline)
     " now we just call the function we referenced and the templating begins
     let Function = function(user_data['funcname'])
+    " NOTE: 'Function' used to take a start column argument, but now we have to position
+    "       the cursor manually first. This was a pretty bad bug.
+    call cursor([lnum, user_data['startcol'] + 1])
     call Function('i')
 endfunction
 
