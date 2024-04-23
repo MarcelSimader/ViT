@@ -187,7 +187,7 @@ call vit#NewTemplate('ViTAlphEnumLeft', s:_.'L', 0, [1, 5], 4, ['\begin{enumerat
 call vit#NewTemplate('ViTItemize',      s:_.'i', 0, [1, 5], 4, ['\begin{itemize}'],                                          ['\end{itemize}'])
 call vit#NewTemplate('ViTDescription',  s:_.'d', 0, [1, 5], 4, ['\begin{description}'],                                      ['\end{description}'])
 call vit#NewTemplate('ViTCenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
-call vit#NewTemplate('ViTTabular',      s:_.'t', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTTabular',      s:_.'T', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
 call vit#NewTemplate('ViTFigure',       s:_.'f', 0, [1, 5], 4, ['\begin{figure}[#1]'],                                       ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 2, ['Figure options: ', 'Caption: '], ['h'])
 call vit#NewTemplate('ViTFigureCenter', s:_.'F', 0, [2, 5], 4, ['\begin{figure}[#1]', '    \centering'],                     ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 2, ['Figure options: ', 'Caption: '], ['h'])
 
@@ -216,6 +216,7 @@ call vit#NewTemplate('ViTBars',        s:_.'\|', 1, [0, 7],  0, ['\left| '],    
 call vit#NewTemplate('ViTOverbrace',   s:_.'1',  1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
 call vit#NewTemplate('ViTUnderbrace',  s:_.'2',  1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
 call vit#NewTemplate('ViTBoxed',       s:_.'3',  1, [0, 7],  0, ['\boxed{'],      ['}'])
+call vit#NewTemplate('ViTText',        s:_.'t',  1, [0, 6],  0, ['\text{'],     ['}'])
 call vit#NewTemplate('ViTEmphasize',   s:_.'em', 1, [0, 6],  0, ['\emph{'],       ['}'])
 call vit#NewTemplate('ViTBold',        s:_.'bo', 1, [0, 8],  0, ['\textbf{'],     ['}'])
 call vit#NewTemplate('ViTItalics',     s:_.'it', 1, [0, 8],  0, ['\textit{'],     ['}'])
