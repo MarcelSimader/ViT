@@ -256,9 +256,9 @@ vit#NewTemplate({name}, {keybind}, {inlinemode},
 	    [2. Set up a keybind for the command with {keybind}.]
 	    3. Register a Vim command.
 
-	The {finalcursoroffset} argument must be of form [] for no action,
-	[line] for putting the cursor in the specified line at column 0, or
-	[line, col] for putting the cursor in the specified line and column.
+	The {finalcursoroffset} argument must be of form `[]` for no action,
+	`[line]` for putting the cursor in the specified line at column 0, or
+	`[line, col]` for putting the cursor in the specified line and column.
 	These positions are relative to the start of the template in the
 	document.
 
@@ -270,7 +270,12 @@ vit#NewTemplate({name}, {keybind}, {inlinemode},
 <
 	The {textbefore} ({textafter}) option is a list of strings of text
 	that is inserted before (after) the to-be surrounded text. These
-	may be left empty by passing [].
+	may be left empty by passing `[]`. It is also possible to include empty
+	strings to force a newline only (e.g. `['line break', '']`). Both of
+	these options can also be function references (|Funcref|) that return
+	a list like described, while taking no arguments. This can be useful to
+	get the current value of an option, or call some function (e.g.
+	`{-> [&current_option_Val .. '  dynamic line', 'static line']`).
 
 	The {numargs}, {argname}, {argdefault}, and {argcomplete} options
 	specify the number of templating arguments (defaults to 0), the

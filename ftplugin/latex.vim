@@ -179,17 +179,17 @@ let s:_ = g:vit_leader
 " ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
 
 " ~~~~~~~~~~ text
-call vit#NewTemplate('ViTEnv',          '<C-E>', 0, [1, 5], 4, ['\begin{#1}'],                                               ['\end{#1}'], 1, ['Name: '])
-call vit#NewTemplate('ViTEnum',         s:_.'e', 0, [1, 5], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'])
-call vit#NewTemplate('ViTEnumLeft',     s:_.'E', 0, [1, 5], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
-call vit#NewTemplate('ViTAlphEnum',     s:_.'l', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'])
-call vit#NewTemplate('ViTAlphEnumLeft', s:_.'L', 0, [1, 5], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'])
-call vit#NewTemplate('ViTItemize',      s:_.'i', 0, [1, 5], 4, ['\begin{itemize}'],                                          ['\end{itemize}'])
-call vit#NewTemplate('ViTDescription',  s:_.'d', 0, [1, 5], 4, ['\begin{description}'],                                      ['\end{description}'])
-call vit#NewTemplate('ViTCenter',       s:_.'c', 0, [1, 5], 4, ['\begin{center}'],                                           ['\end{center}'])
-call vit#NewTemplate('ViTTabular',      s:_.'T', 0, [1, 5], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
-call vit#NewTemplate('ViTFigure',       s:_.'f', 0, [1, 5], 4, ['\begin{figure}[#1]'],                                       ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 2, ['Figure options: ', 'Caption: '], ['h'])
-call vit#NewTemplate('ViTFigureCenter', s:_.'F', 0, [2, 5], 4, ['\begin{figure}[#1]', '    \centering'],                     ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 2, ['Figure options: ', 'Caption: '], ['h'])
+call vit#NewTemplate('ViTEnv',          '<C-E>', 0, [1, -1], 4, ['\begin{#1}'],                                               ['\end{#1}'], 1, ['Name: '])
+call vit#NewTemplate('ViTEnum',         s:_.'e', 0, [1, -1], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'])
+call vit#NewTemplate('ViTEnumLeft',     s:_.'E', 0, [1, -1], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
+call vit#NewTemplate('ViTAlphEnum',     s:_.'l', 0, [1, -1], 4, ['\begin{enumerate}[label=\alph*)]'],                         ['\end{enumerate}'])
+call vit#NewTemplate('ViTAlphEnumLeft', s:_.'L', 0, [1, -1], 4, ['\begin{enumerate}[label=\alph*),leftmargin=*,align=left]'], ['\end{enumerate}'])
+call vit#NewTemplate('ViTItemize',      s:_.'i', 0, [1, -1], 4, ['\begin{itemize}'],                                          ['\end{itemize}'])
+call vit#NewTemplate('ViTDescription',  s:_.'d', 0, [1, -1], 4, ['\begin{description}'],                                      ['\end{description}'])
+call vit#NewTemplate('ViTCenter',       s:_.'c', 0, [1, -1], 4, ['\begin{center}'],                                           ['\end{center}'])
+call vit#NewTemplate('ViTTabular',      s:_.'T', 0, [1, -1], 4, ['\begin{tabular}{#1}'],                                      ['\end{tabular}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTFigure',       s:_.'f', 0, [1, -1], 4, ['\begin{figure}[#1]'],                                       ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 2, ['Figure options: ', 'Caption: '], ['h'])
+call vit#NewTemplate('ViTFigureCenter', s:_.'F', 0, [2, -1], 4, ['\begin{figure}[#1]', '    \centering'],                     ['    \caption{#2}', '    \label{fig:#/\s/-/2}', '\end{figure}'], 2, ['Figure options: ', 'Caption: '], ['h'])
 
 call vit#NewTemplate('ViTChapter',       s:_.'C',   0, [3], 0, ['\chapter{#1}',       '\label{chap:#/\s/-/1}'],  [''], 1, ['Name: '])
 call vit#NewTemplate('ViTSection',       s:_.'s',   0, [3], 0, ['\section{#1}',       '\label{sec:#/\s/-/1}'],   [''], 1, ['Name: '])
@@ -199,12 +199,12 @@ call vit#NewTemplate('ViTParagraph',     s:_.'p',   0, [3], 0, ['\paragraph{#1}'
 call vit#NewTemplate('ViTSubParagraph',  s:_.'pp',  0, [3], 0, ['\subparagraph{#1}',  '\label{spar:#/\s/-/1}'],  [''], 1, ['Name: '])
 
 " ~~~~~~~~~~ math
-call vit#NewTemplate('ViTEquation', s:_.'q', 0, [1, 5], 4, ['\begin{equation*}'],    ['\end{equation*}'])
-call vit#NewTemplate('ViTGather',   s:_.'g', 0, [1, 5], 4, ['\begin{gather*}'],      ['\end{gather*}'])
-call vit#NewTemplate('ViTAlign',    s:_.'a', 0, [1, 5], 4, ['\begin{align*}'],       ['\end{align*}'])
-call vit#NewTemplate('ViTAlignAt',  s:_.'A', 0, [1, 5], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'], 1, ['Columns: '])
-call vit#NewTemplate('ViTProof',    s:_.'r', 0, [1, 5], 4, ['\begin{proof}'],        ['\end{proof}'])
-call vit#NewTemplate('ViTMatrix',   s:_.'m', 0, [1, 5], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTEquation', s:_.'q', 0, [1, -1], 4, ['\begin{equation*}'],    ['\end{equation*}'])
+call vit#NewTemplate('ViTGather',   s:_.'g', 0, [1, -1], 4, ['\begin{gather*}'],      ['\end{gather*}'])
+call vit#NewTemplate('ViTAlign',    s:_.'a', 0, [1, -1], 4, ['\begin{align*}'],       ['\end{align*}'])
+call vit#NewTemplate('ViTAlignAt',  s:_.'A', 0, [1, -1], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'], 1, ['Columns: '])
+call vit#NewTemplate('ViTProof',    s:_.'r', 0, [1, -1], 4, ['\begin{proof}'],        ['\end{proof}'])
+call vit#NewTemplate('ViTMatrix',   s:_.'m', 0, [1, -1], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'], 1, ['Columns: '])
 
 " ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
 
@@ -216,10 +216,11 @@ call vit#NewTemplate('ViTBars',        s:_.'\|', 1, [0, 7],  0, ['\left| '],    
 call vit#NewTemplate('ViTOverbrace',   s:_.'1',  1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
 call vit#NewTemplate('ViTUnderbrace',  s:_.'2',  1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
 call vit#NewTemplate('ViTBoxed',       s:_.'3',  1, [0, 7],  0, ['\boxed{'],      ['}'])
-call vit#NewTemplate('ViTText',        s:_.'t',  1, [0, 6],  0, ['\text{'],     ['}'])
+call vit#NewTemplate('ViTText',        s:_.'t',  1, [0, 6],  0, ['\text{'],       ['}'])
 call vit#NewTemplate('ViTEmphasize',   s:_.'em', 1, [0, 6],  0, ['\emph{'],       ['}'])
-call vit#NewTemplate('ViTBold',        s:_.'bo', 1, [0, 8],  0, ['\textbf{'],     ['}'])
+call vit#NewTemplate('ViTBold',        s:_.'bf', 1, [0, 8],  0, ['\textbf{'],     ['}'])
 call vit#NewTemplate('ViTItalics',     s:_.'it', 1, [0, 8],  0, ['\textit{'],     ['}'])
+call vit#NewTemplate('ViTUnderline',   s:_.'ul', 1, [0, 11],  0, ['\underline{'], ['}'])
 call vit#NewTemplate('ViTFrac', '', 1, [0, 6], 0, ['\frac{'],  ['}{}'])
 call vit#NewTemplate('ViTSqrt', '', 1, [0, 6], 0, ['\sqrt{'],  ['}'])
 call vit#NewTemplate('ViTRoot', '', 1, [0, 6], 0, ['\sqrt['],  [']{}'])

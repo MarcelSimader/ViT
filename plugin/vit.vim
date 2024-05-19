@@ -18,7 +18,7 @@ if !exists('*s:LoadViT')
         call setbufvar(buf, 'did_ftplugin', 0)
         " reload scripts
         let start = reltime()
-        for file in ['ftdetect/latex.vim', 'ftplugin/latex.vim', 'plugin/vit.vim',
+        for file in ['ftdetect/latex.vim', 'plugin/vit.vim', 'ftplugin/latex.vim',
                     \ 'syntax/latex.vim', 'autoload/*.vim', 'user/*.vim']
             execute 'runtime '.file
         endfor
@@ -329,24 +329,29 @@ endfunction
 "       upon completing the template, if column is '-1', place at very end of line
 "   middleindent, the indent of text that the template surrounds in
 "       surround mode
-"   textbefore, an array of lines for the before-text
-"   textafter, an array of lines for the after-text
+"   Textbefore, an array of lines for the before-text, or a funcref providing said list
+"   Textafter, an array of lines for the after-text, or a funcred providing said list
 "   [numargs,] the number of template parameters '#1, #2, ...' in the
 "       'text(before|after)' arguments
 "   [...,] the rest parameter contains the names of the template
 "        parameters, see 'ViTPromptTemplateCompletion'
 function vit#NewTemplate(name, keybind, inlinemode,
-            \ finalcursoroffset, middleindent, textbefore, textafter,
+            \ finalcursoroffset, middleindent, Textbefore, Textafter,
             \ numargs = 0, argname = [], argdefault = [], argcomplete = [])
     let id = rand(srand())
     let funcname = 'ViTNewCommandSub_'.id.'_'.a:name
 
+    " ~~~~~~~~~~ expand Textbefore, and Textafter function
+    function! {funcname}_expand() closure
+        let before = (type(a:Textbefore) is v:t_func) ? a:Textbefore() : a:Textbefore
+        let after  = (type(a:Textafter)  is v:t_func) ? a:Textafter()  : a:Textafter
+        for val in before + after | call assert_equal(v:t_string, type(val)) | endfor
+        return [copy(before), copy(after)]
+    endfunction
     " ~~~~~~~~~~ command function
     function! {funcname}(mode = 'i') range closure
-        let [textbefore, textafter] = [a:textbefore, a:textafter]
+        let [textbefore, textafter] = {funcname}_expand()
         let [lstart, lend] = [a:firstline, a:lastline]
-        " possibly flip start and end
-        if lstart > lend | let [lstart, lend] = [lend, lstart] | endif
         " setting cursor and line based on mode
         if a:mode == '' || (a:mode == 'i' && a:inlinemode == 1)
             " inline insert mode
@@ -358,8 +363,6 @@ function vit#NewTemplate(name, keybind, inlinemode,
         elseif a:mode == 'v'
             " character insert mode
             let [cstart, cend] = [col("'<"), col("'>") + 1]
-            " possibly flip start and end
-            if cstart > cend | let [cstart, cend] = [cend, cstart] | endif
         else
             throw 'ViT: Unknown mode "'.a:mode.'".'
         endif
@@ -386,11 +389,11 @@ function vit#NewTemplate(name, keybind, inlinemode,
     endfunction
 
     " ~~~~~~~~~~ save into our list
-    let firstline = get(a:textbefore, 0, '')
-    if len(firstline) > 0
+    let [textbefore, textafter] = {funcname}_expand()
+    if empty(get(textbefore, 0, ''))
         let preview = a:inlinemode
-                    \ ? join(a:textbefore, "\n").'*'.join(a:textafter, "\n")
-                    \ : join(a:textbefore + ['<*>'] + a:textafter, "\n")
+                    \ ? join(textbefore, "\n").'*'.join(textafter, "\n")
+                    \ : join(textbefore + ['<*>'] + textafter, "\n")
         let template_dict = {
                     \ 'name': a:name, 'keybind': a:keybind, 'firstline': firstline,
                     \ 'inlinemode': a:inlinemode, 'preview': preview,
