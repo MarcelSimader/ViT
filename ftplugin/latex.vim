@@ -19,33 +19,31 @@ endif
 let s:save_cpo = &cpo
 set cpo&vim
 
+" Setup {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Setup ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 let s:bufname = bufname()
-
-" in case Vim is creating a new file using :new, check if file actually exists
+" In case Vim is creating a new file using :new, check if file actually exists
 if vitutil#FileExists(s:bufname)
-
-    " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    " ~~~~~~~~~~~~~~~~~~~~ FILE TREE ~~~~~~~~~~~~~~~~~~~~
-    " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    "
     call vit#ResetRootFile(s:bufname)
-
-    " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    " ~~~~~~~~~~~~~~~~~~~~ MODELINE ~~~~~~~~~~~~~~~~~~~~
-    " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
     " parse compilation header once every time the ftplugin is loaded
     call vit#ParseModeline(s:bufname)
 
 endif
 
+" }}}
+
+" Options {{{
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ OPTIONS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Options ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " set undo options
-" TODO: does not work currently?
-let b:undo_ftplugin +=
+" TODO: Does not work currently? It might now, after changing the += to a .= operator,
+"       this must have been a mistake, since += on a string returns 0, it seems
+let b:undo_ftplugin .=
     \ '| setlocal conceallevel< completefunc< completeopt<'
     \.'| unlet b:indentLine_enabled'
 
@@ -58,8 +56,11 @@ setlocal completeopt=menuone,noinsert,noselect,popup
 " would just break conceallevel
 let b:indentLine_enabled = 0
 
+" }}}
+
+" Keymaps {{{
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ KEYMAPS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Keymaps ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 if g:vit_enable_keybinds
@@ -89,11 +90,15 @@ if g:vit_enable_keybinds
     nnoremap <buffer> ! <Cmd>noautocmd update \| call vit#Compile(bufname(), "!")<CR>
 
     " cursor move
-    execute 'inoremap <buffer> '.g:vit_leader.'<Tab> <Cmd>call vit#SmartMoveCursorRight()<CR>'
+    execute 'inoremap <buffer> '.g:vit_leader
+                \ .'<Tab> <Cmd>call vit#SmartMoveCursorRight()<CR>'
 endif
 
+" }}}
+
+" Commands {{{
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ COMMANDS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Commands ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 if g:vit_enable_commands
@@ -102,25 +107,28 @@ if g:vit_enable_commands
                 \ | call vit#Compile(bufname(), '<bang>', {'numcomps': <count>})
 
     " environment actions
-    command -buffer ViTEnvDelete :call vit#DeleteCurrentTeXEnv()
-    command -buffer ViTEnvChange :call vit#ChangeCurrentTeXEnv()
-    command -buffer ViTEnvChangeStar :call vit#ChangeCurrentTeXEnvStar()
+    command -buffer ViTEnvDelete :keepjumps call vit#DeleteCurrentTeXEnv()
+    command -buffer ViTEnvChange :keepjumps call vit#ChangeCurrentTeXEnv()
+    command -buffer ViTEnvChangeStar :keepjumps call vit#ChangeCurrentTeXEnvStar()
 
     command -buffer ViTStatus :call vit#Status(bufname())
 endif
 
+" }}}
+
+" Autocommands {{{
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ AUTOCOMMANDS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Autocommands ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 augroup ViT
     autocmd!
 
     " compile the modeline every time we save to update values
-    autocmd BufWritePost <buffer> :call vit#ParseModeline(bufname())
+    autocmd BufWritePost,FileWritePost <buffer> :call vit#ParseModeline(bufname())
 
     " compiling automatically
-    autocmd BufWritePost <buffer>
+    autocmd BufWritePost,FileWritePost <buffer>
                 \ :if getbufvar(bufname(), 'vit_compile_on_write', g:vit_compile_on_write)
                 \ | call vit#Compile(bufname(), '!')
                 \ | endif
@@ -133,9 +141,12 @@ augroup ViT
 
 augroup END
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ STATUSLINE ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
+
+" Status Line {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Status Line ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 if !exists('*ViTStatusTeXEnv')
     function ViTStatusTeXEnv(airline = 0)
@@ -170,15 +181,17 @@ endif
 " regular statusline
 setlocal statusline=%f\ \|\ %{ViTStatusline(0)}\ >\ %{ViTStatusTeXEnv(0)}
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ TEMPLATE DEFINITIONS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
+
+" Default Templates {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Default Templates ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 let s:_ = g:vit_leader
 
-" ~~~~~~~~~~~~~~~~~~~~ general ~~~~~~~~~~~~~~~~~~~~
-
-" ~~~~~~~~~~ text
+" General {{{
+" ~~~~~~~~~~~~~~~~~~~~ General ~~~~~~~~~~~~~~~~~~~~
 call vit#NewTemplate('ViTEnv',          '<C-E>', 0, [1, -1], 4, ['\begin{#1}'],                                               ['\end{#1}'], 1, ['Name: '])
 call vit#NewTemplate('ViTEnum',         s:_.'e', 0, [1, -1], 4, ['\begin{enumerate}'],                                        ['\end{enumerate}'])
 call vit#NewTemplate('ViTEnumLeft',     s:_.'E', 0, [1, -1], 4, ['\begin{enumerate}[leftmargin=*,align=left]'],               ['\end{enumerate}'])
@@ -197,30 +210,34 @@ call vit#NewTemplate('ViTSubSection',    s:_.'ss',  0, [3], 0, ['\subsection{#1}
 call vit#NewTemplate('ViTSubSubSection', s:_.'sss', 0, [3], 0, ['\subsubsection{#1}', '\label{sssec:#/\s/-/1}'], [''], 1, ['Name: '])
 call vit#NewTemplate('ViTParagraph',     s:_.'p',   0, [3], 0, ['\paragraph{#1}',     '\label{par:#/\s/-/1}'],   [''], 1, ['Name: '])
 call vit#NewTemplate('ViTSubParagraph',  s:_.'pp',  0, [3], 0, ['\subparagraph{#1}',  '\label{spar:#/\s/-/1}'],  [''], 1, ['Name: '])
+" }}}
 
-" ~~~~~~~~~~ math
+" Math Mode {{{
+" ~~~~~~~~~~~~~~~~~~~~ Math Mode ~~~~~~~~~~~~~~~~~~~~
 call vit#NewTemplate('ViTEquation', s:_.'q', 0, [1, -1], 4, ['\begin{equation*}'],    ['\end{equation*}'])
 call vit#NewTemplate('ViTGather',   s:_.'g', 0, [1, -1], 4, ['\begin{gather*}'],      ['\end{gather*}'])
 call vit#NewTemplate('ViTAlign',    s:_.'a', 0, [1, -1], 4, ['\begin{align*}'],       ['\end{align*}'])
 call vit#NewTemplate('ViTAlignAt',  s:_.'A', 0, [1, -1], 4, ['\begin{alignat*}{#1}'], ['\end{alignat*}'], 1, ['Columns: '])
 call vit#NewTemplate('ViTProof',    s:_.'r', 0, [1, -1], 4, ['\begin{proof}'],        ['\end{proof}'])
 call vit#NewTemplate('ViTMatrix',   s:_.'m', 0, [1, -1], 4, ['\begin{matrix}{#1}'],   ['\end{matrix}'], 1, ['Columns: '])
+" }}}
 
-" ~~~~~~~~~~~~~~~~~~~~ inline ~~~~~~~~~~~~~~~~~~~~
+" Inline {{{
+" ~~~~~~~~~~~~~~~~~~~~ Inline ~~~~~~~~~~~~~~~~~~~~
+call vit#NewTemplate('ViTMathMode',    s:_.'$',  1, [0, 1],  0,  ['$'],            ['$'])
+call vit#NewTemplate('ViTParentheses', s:_.')',  1, [0, 7],  0,  ['\left( '],      [' \right)'])
+call vit#NewTemplate('ViTBrackets',    s:_.']',  1, [0, 7],  0,  ['\left[ '],      [' \right]'])
+call vit#NewTemplate('ViTBraces',      s:_.'}',  1, [0, 8],  0,  ['\left\{ '],     [' \right\}'])
+call vit#NewTemplate('ViTBars',        s:_.'\|', 1, [0, 7],  0,  ['\left| '],      [' \right|'])
+call vit#NewTemplate('ViTOverbrace',   s:_.'1',  1, [0, 11], 0,  ['\overbrace{'],  ['}^{}'])
+call vit#NewTemplate('ViTUnderbrace',  s:_.'2',  1, [0, 12], 0,  ['\underbrace{'], ['}_{}'])
+call vit#NewTemplate('ViTBoxed',       s:_.'3',  1, [0, 7],  0,  ['\boxed{'],      ['}'])
+call vit#NewTemplate('ViTText',        s:_.'t',  1, [0, 6],  0,  ['\text{'],       ['}'])
+call vit#NewTemplate('ViTEmphasize',   s:_.'em', 1, [0, 6],  0,  ['\emph{'],       ['}'])
+call vit#NewTemplate('ViTBold',        s:_.'bf', 1, [0, 8],  0,  ['\textbf{'],     ['}'])
+call vit#NewTemplate('ViTItalics',     s:_.'it', 1, [0, 8],  0,  ['\textit{'],     ['}'])
+call vit#NewTemplate('ViTUnderline',   s:_.'ul', 1, [0, 11],  0, ['\underline{'],  ['}'])
 
-call vit#NewTemplate('ViTMathMode',    s:_.'$',  1, [0, 1],  0, ['$'],            ['$'])
-call vit#NewTemplate('ViTParentheses', s:_.')',  1, [0, 7],  0, ['\left( '],      [' \right)'])
-call vit#NewTemplate('ViTBrackets',    s:_.']',  1, [0, 7],  0, ['\left[ '],      [' \right]'])
-call vit#NewTemplate('ViTBraces',      s:_.'}',  1, [0, 8],  0, ['\left\{ '],     [' \right\}'])
-call vit#NewTemplate('ViTBars',        s:_.'\|', 1, [0, 7],  0, ['\left| '],      [' \right|'])
-call vit#NewTemplate('ViTOverbrace',   s:_.'1',  1, [0, 11], 0, ['\overbrace{'],  ['}^{}'])
-call vit#NewTemplate('ViTUnderbrace',  s:_.'2',  1, [0, 12], 0, ['\underbrace{'], ['}_{}'])
-call vit#NewTemplate('ViTBoxed',       s:_.'3',  1, [0, 7],  0, ['\boxed{'],      ['}'])
-call vit#NewTemplate('ViTText',        s:_.'t',  1, [0, 6],  0, ['\text{'],       ['}'])
-call vit#NewTemplate('ViTEmphasize',   s:_.'em', 1, [0, 6],  0, ['\emph{'],       ['}'])
-call vit#NewTemplate('ViTBold',        s:_.'bf', 1, [0, 8],  0, ['\textbf{'],     ['}'])
-call vit#NewTemplate('ViTItalics',     s:_.'it', 1, [0, 8],  0, ['\textit{'],     ['}'])
-call vit#NewTemplate('ViTUnderline',   s:_.'ul', 1, [0, 11],  0, ['\underline{'], ['}'])
 call vit#NewTemplate('ViTFrac', '', 1, [0, 6], 0, ['\frac{'],  ['}{}'])
 call vit#NewTemplate('ViTSqrt', '', 1, [0, 6], 0, ['\sqrt{'],  ['}'])
 call vit#NewTemplate('ViTRoot', '', 1, [0, 6], 0, ['\sqrt['],  [']{}'])
@@ -230,16 +247,15 @@ call vit#NewTemplate('ViTProd', '', 1, [0, 7], 0, ['\prod_{'], ['}^{}'])
 call vit#NewTemplate('ViTLim',  '', 1, [0, 6], 0, ['\lim_{'],  ['}'])
 call vit#NewTemplate('ViTSup',  '', 1, [0, 6], 0, ['\sup_{'],  ['}'])
 call vit#NewTemplate('ViTInf',  '', 1, [0, 6], 0, ['\inf_{'],  ['}'])
+" }}}
 
 unlet s:_
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ CLEANUP ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
 
 " reset cpoptions as per :h usr_41
 let &cpo = s:save_cpo
 unlet s:save_cpo
 
 unlet s:bufname
-
+" vim: foldmethod=marker
