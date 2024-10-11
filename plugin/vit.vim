@@ -3,12 +3,12 @@
 " Date: 26.12.2021
 " (c) Marcel Simader 2021
 
+" Debug {{{
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ DEBUG ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Debug ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 if !exists('*s:LoadViT')
-    function! s:LoadViT()
+    function s:LoadViT()
         if &ft != 'latex'
             return
         endif
@@ -30,10 +30,7 @@ if !exists('*s:LoadViT')
     endfunction
     command ViTLoadLocal :call <SID>LoadViT()
 endif
-
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ /DEBUG ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
 
 " acts as include guard
 if exists('g:vit_did_plugin') || (exists('g:vit_enable') && !g:vit_enable)
@@ -41,9 +38,10 @@ if exists('g:vit_did_plugin') || (exists('g:vit_enable') && !g:vit_enable)
 endif
 let g:vit_did_plugin = 1
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ GLOBAL CONFIGS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" Global Configuration {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Global Configuration ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Adds a new ViT global config option. This only defines the
 " vars once, and makes sure user wishes are granted. Merry Christmas.
@@ -92,9 +90,17 @@ call s:Config('g:vit_compile_on_write', {-> 0})
 " TODO: maybe document this
 call s:Config('g:vit_signs', {-> {}})
 call s:Config('g:vit_num_errors', {-> 0})
+" TODO: maybe document this
+call s:Config('g:vit_compiler_text_fmt', {-> 'ViT: Compiling No. %d of %d%s'})
+call s:Config('g:vit_compiler_text_min_time_s', {-> 0.250})
+call s:Config('g:vit_compiler_popup_autoclose_ms', {-> 60 * 1000})
 call s:Config('g:vit_compiler_ctx', {-> {
             \ 'is_compiling': 0,
             \ 'is_queued': 0,
+            \ 'last_touch': [0, 0],
+            \ 'num_comps': 0,
+            \ 'curr_comp': 0,
+            \ 'dot_counter': 3,
             \ 'last_popupid': -1,
             \ }})
 " This list is filled with dicts of the following form:
@@ -107,8 +113,11 @@ call s:Config('g:vit_compiler_ctx', {-> {
 "   }
 call s:Config('g:vit_templates', {-> []})
 
+" }}}
+
+" Signs and Highlights {{{
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ SIGNS AND HIGHLIGHTS ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Signs and Highlights ~~~~~~~~~~~~~~~~~~~~
 " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 highlight ViTErrorSign ctermfg=White ctermbg=DarkRed
@@ -118,10 +127,15 @@ highlight ViTCompileMsg ctermfg=Blue ctermbg=Black
 highlight ViTSuccMsg ctermfg=Green ctermbg=Black
 highlight ViTErrMsg ctermfg=DarkRed ctermbg=Black
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ COMPILING ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
 
+" Compilation {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Compilation ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" Managing {{{
+" ~~~~~~~~~~~~~~~~~~~~ Managing ~~~~~~~~~~~~~~~~~~~~
 " Compiles the contents of a file using the configured LaTeX compiler.
 " Arguments:
 "   buf, the buffer to take settings from to figure out what to compile
@@ -131,12 +145,17 @@ highlight ViTErrMsg ctermfg=DarkRed ctermbg=Black
 "       each key that is not set is set to the value of b:vit_compiler, which is initially
 "       set to the global value g:vit_compiler
 "   [pwd,] manually sets the working path, defaults to current working directory
-"   [currentcomp,] need not be set by user, internal argument, defaults to v:none
-function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp = v:none)
+"   [currcomp,] need not be set by user, internal argument, defaults to v:none
+function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currcomp = v:none)
+    " This just makes sure we don't try to compile right before Vim is about to exit. The
+    " way commands are detected is a bit janky (it either matches when :q is the beginning
+    " of a command, or if it contains :wq somewhere, as in :wqa)
+    " TODO: improve command detection, see comment directly above
+    if !(v:exiting is v:null) || v:dying > 0 || @: =~? '^q\|wq' | return | endif
     " set up variables
     let pwd = (a:pwd is v:none) ? getcwd() : a:pwd
-    let currentcomp = (a:currentcomp is v:none) ? 1 : a:currentcomp
-    let firstcall = a:currentcomp is v:none
+    let currcomp = (a:currcomp is v:none) ? 1 : a:currcomp
+    let firstcall = a:currcomp is v:none
 
     " parse modline again just in case it changed
     if firstcall | call vit#ParseModeline(a:buf) | endif
@@ -169,18 +188,15 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp 
         return
     endif
     " if no job has been created we can assume that it is dead (see :h job_status())
-    let jobstat = exists('s:vcurrjob') ? job_status(s:currjob) : 'dead'
+    let jobstat = exists('s:currjob') ? job_status(s:currjob) : 'dead'
     if g:vit_compiler_ctx['is_compiling'] && jobstat == 'run'
         let g:vit_compiler_ctx['is_queued'] = 1
-        echomsg 'ViT: Compilation for buffer "'.a:buf.'" queued.'
-        return
+        redraw | echomsg 'ViT: Compilation for buffer "'.a:buf.'" queued.' | return
     else
         let g:vit_compiler_ctx['is_compiling'] = 0
         " if this is the first call to this function, we also want to reset the
         " 'compilation_queued' variable, since we are the queued compilation
-        if firstcall
-            let g:vit_compiler_ctx['is_queued'] = 0
-        endif
+        if firstcall | let g:vit_compiler_ctx['is_queued'] = 0 | endif
     endif
 
     " handle error signs, quickfix list, etc. resets
@@ -194,46 +210,93 @@ function vit#Compile(buf, silent = '', compiler = {}, pwd = v:none, currentcomp 
 
     " now we are actually gonna compile! yay
     let cmd = vitutil#PrepareArgs([compiler, flags], fnameescape(filepath))
-    if a:silent == '!' || a:silent == '1' || a:silent == 1 || a:silent is v:true
-        let s:currjob = job_start(cmd, #{cwd: pwd,
-                    \ callback: {_, msg -> vit#CompileCallback(msg, a:buf, errregex)},
-                    \ exit_cb: {_, exit -> vit#CompileExitCallback(exit, numcomps, a:buf,
-                        \ a:silent, a:compiler, pwd, currentcomp)},
-                    \ })
-    else
-        let term_buffer = term_start(cmd, #{cwd: pwd,
-                    \ callback: {_, msg -> vit#CompileCallback(msg, a:buf, errregex)},
-                    \ exit_cb: {_, exit -> vit#CompileExitCallback(exit, numcomps, a:buf,
-                        \ a:silent, a:compiler, pwd, currentcomp)},
-                    \ })
-        let s:currjob = term_getjob(term_buffer)
-    end
+    let hidden = a:silent == '!' || a:silent == '1' || a:silent == 1 || a:silent is v:true
+    let term_buffer = term_start(cmd, #{cwd: pwd,
+                \ callback: {_, msg -> vit#CompileCallback(msg, a:buf, errregex)},
+                \ exit_cb: {_, exit -> vit#CompileExitCallback(exit, numcomps, a:buf,
+                    \ a:silent, a:compiler, pwd, currcomp)},
+                \ in_io: 'null',
+                \ term_kill: 'kill',
+                \ norestore: v:true,
+                \ hidden: hidden,
+            \ })
+    let s:currjob = term_getjob(term_buffer)
 
-    " mark as compiling
+    " mark as compiling and set some of the properties
     let g:vit_compiler_ctx['is_compiling'] = 1
-    " simple print
-    let compiling_text = 'Compiling No. '.currentcomp.' of '.numcomps.'...'
-    echo compiling_text | redraw
-    " popup notification
-    let win = bufwinid(a:buf)
-    if win != -1
-        let [row, col] = win_screenpos(win)
+    let g:vit_compiler_ctx['num_comps'] = numcomps
+    let g:vit_compiler_ctx['curr_comp'] = currcomp
+    let g:vit_compiler_ctx['last_touch'] = reltime()
+    let g:vit_compiler_ctx['dot_counter'] = 3
+
+    " update graphical elements
+    call s:UpdateCompileText(a:buf, v:false)
+endfunction
+
+" Updates graphical elements for compilation command: text, popup, etc...
+function s:UpdateCompileText(buf, doupdate = v:true,
+            \ hl = 'ViTCompileMsg', force_text = v:none, extra_opts = {})
+    if !g:vit_compiler_ctx['is_compiling'] | return | endif
+    if a:doupdate
+        let passed_time = reltimefloat(reltime(g:vit_compiler_ctx['last_touch']))
+        if passed_time < g:vit_compiler_text_min_time_s | return | endif
+        let g:vit_compiler_ctx['last_touch'] = reltime()
+        let g:vit_compiler_ctx['dot_counter']
+                    \ = (g:vit_compiler_ctx['dot_counter'] + 1) % 9
+    endif
+    " set up text according to arguments
+    if a:force_text is v:none
+        let ctext = printf(g:vit_compiler_text_fmt,
+                    \ g:vit_compiler_ctx['curr_comp'],
+                    \ g:vit_compiler_ctx['num_comps'],
+                    \ repeat('.', 1 + g:vit_compiler_ctx['dot_counter']))
+    else
+        let ctext = a:force_text
+    endif
+    " mark with + if queued
+    if g:vit_compiler_ctx['is_queued'] | let ctext = '+ '..ctext | endif
+    " simple echo
+    if !a:doupdate | redraw | execute 'echohl '..a:hl | echo ctext | echohl None | endif
+    " either update or open popup notification
+    let width = strcharlen(ctext)
+    if g:vit_compiler_ctx['last_popupid'] == -1
+        let win = bufwinid(a:buf)
+        let [row, col] = (win == -1) ? [0, 0] : win_screenpos(win)
         let g:vit_compiler_ctx['last_popupid'] = popup_notification(
-                    \ compiling_text,
-                    \ {
-                        \ 'highlight': 'ViTCompileMsg',
+                    \ ctext,
+                    \ extend({
+                        \ 'highlight': a:hl,
                         \ 'line': row + 1,
                         \ 'col': col + 5,
                         \ 'dragall': 1,
-                    \ })
+                        \ 'close': 'button',
+                        \ 'zindex': 2,
+                        \ 'padding': [0, 1, 0, 1],
+                        \ 'time': g:vit_compiler_popup_autoclose_ms,
+                        \ 'minwidth': width,
+                        \ 'maxwidth': width,
+                        \ 'callback': {-> execute(
+                        \     "let g:vit_compiler_ctx[\'last_popupid\'] = -1"
+                        \ )},
+                    \ }, a:extra_opts))
+    else
+        call popup_settext(g:vit_compiler_ctx['last_popupid'], ctext)
+        call popup_setoptions(g:vit_compiler_ctx['last_popupid'],
+                    \ extend({
+                        \ 'highlight': a:hl,
+                        \ 'minwidth': width,
+                        \ 'maxwidth': width,
+                    \ }, a:extra_opts))
     endif
 endfunction
+" }}}
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ COMPILATION CALLBACK ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+" Callbacks {{{
+" ~~~~~~~~~~~~~~~~~~~~ Callbacks ~~~~~~~~~~~~~~~~~~~~
 function vit#CompileCallback(msg, buf, errregex)
+    " update graphical elements
+    call s:UpdateCompileText(a:buf, v:true)
+
     " check if error parsings are even enabled in this pass
     if g:vit_max_errors < 1 || g:vit_num_errors >= g:vit_max_errors
         return
@@ -241,16 +304,12 @@ function vit#CompileCallback(msg, buf, errregex)
 
     " do actual list match so we can extract the right parts
     let match = matchlist(a:msg, a:errregex)
-    if empty(match)
-        return
-    endif
+    if empty(match) | return | endif
     let [_, file, line, error; _] = match
     " if buffer is not found, returns -1
     let errbuf = bufnr(file)
     " if no line or error is given, abort
-    if empty(line) || empty(error)
-        return
-    endif
+    if empty(line) || empty(error) | return | endif
 
     " place sign
     if errbuf != -1
@@ -270,12 +329,10 @@ function vit#CompileCallback(msg, buf, errregex)
     " TODO: look into printing status messages for this callback
 endfunction
 
-function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, currentcomp)
-    let g:vit_compiler_ctx['is_compiling'] = 0
-
-    if a:currentcomp < a:numcomps
+function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, currcomp)
+    if a:currcomp < a:numcomps
         " call the function again and return
-        call vit#Compile(a:buf, a:silent, a:compiler, a:pwd, a:currentcomp + 1)
+        call vit#Compile(a:buf, a:silent, a:compiler, a:pwd, a:currcomp + 1)
         return
     endif
     if g:vit_compiler_ctx['is_queued']
@@ -288,23 +345,21 @@ function vit#CompileExitCallback(exit, numcomps, buf, silent, compiler, pwd, cur
     " handle success message
     let strexit = string(a:exit)
     if a:exit == 0
-        echohl MoreMsg | redraw
-        echo '['.strexit.'] Compiled succesfully! Yay!'
-        echohl None
+        let hl = 'ViTSuccMsg'
+        let ctext = '['.strexit.'] Compiled succesfully! Yay!'
     else
-        echohl ErrorMsg | redraw
-        echo '['.strexit.'] Compiled with errors... :('
-        echohl None
+        let hl = 'ViTErrMsg'
+        let ctext = '['.strexit.'] Compiled with errors... :('
     endif
-    " update last popup
-    if g:vit_compiler_ctx['last_popupid'] != -1
-        call popup_setoptions(
-                    \ g:vit_compiler_ctx['last_popupid'],
-                    \ {
-                        \ 'highlight': (a:exit == 0) ? 'ViTSuccMsg' : 'ViTErrMsg',
-                    \ })
-        let g:vit_compiler_ctx['last_popupid'] = -1
-    endif
+    " update graphical elements
+    call s:UpdateCompileText(a:buf, v:false, hl, ctext, {'time': 4 * 1000})
+
+    " reset other properties
+    let g:vit_compiler_ctx['is_compiling'] = 0
+    let g:vit_compiler_ctx['last_touch'] = [0, 0]
+    let g:vit_compiler_ctx['num_comps'] = 0
+    let g:vit_compiler_ctx['curr_comp'] = 0
+    let g:vit_compiler_ctx['dot_counter'] = 3
 endfunction
 
 function vit#CompileSignHover()
@@ -314,10 +369,14 @@ function vit#CompileSignHover()
         echohl ErrorMsg | redraw | echo err | echohl None
     endif
 endfunction
+" }}}
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ TEMPLATING FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
+
+" Templating {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Templating ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Sets up a new ViT template.
 " Arguments:
@@ -390,7 +449,8 @@ function vit#NewTemplate(name, keybind, inlinemode,
 
     " ~~~~~~~~~~ save into our list
     let [textbefore, textafter] = {funcname}_expand()
-    if empty(get(textbefore, 0, ''))
+    let firstline = get(textbefore, 0, '')
+    if !empty(firstline)
         let preview = a:inlinemode
                     \ ? join(textbefore, "\n").'*'.join(textafter, "\n")
                     \ : join(textbefore + ['<*>'] + textafter, "\n")
@@ -416,9 +476,12 @@ function vit#NewTemplate(name, keybind, inlinemode,
     return funcref(funcname)
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ COMPLETION ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
+
+" Insert Mode Completion {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Insert Mode Completion ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " This function returns the completion results given the current cursor position.
 function vit#Complete()
@@ -473,10 +536,15 @@ function vit#OnComplete()
     call Function('i')
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ FILE TREE ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
 
+" Modeline {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Modeline ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+" File Tree {{{
+" ~~~~~~~~~~~~~~~~~~~~ File Tree ~~~~~~~~~~~~~~~~~~~~
 function vit#ResetRootFile(buf)
     let buf = bufname(a:buf)
     call vitutil#ResetVar(buf, 'vit_file_tree', s:MakeFileNode(buf))
@@ -515,10 +583,7 @@ endfunction
 function s:MakeFileNode(filename)
     return vitnode#Node(vitutil#PrepareFname(a:filename, 1))
 endfunction
-
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ MODELINE ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
 
 " Sets the vit_compiler, vit_num_compilations variable, and what larger file tree this
 " file is included in based on the following syntax:
@@ -569,9 +634,12 @@ function vit#ParseModeline(buf, numlines = 15, maxdepth = 15)
     call vitmodeline#Parse(a:buf, buf, 0, a:numlines, a:maxdepth)
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ TeX UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
+
+" TeX Public Utility Functions {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ TeX Public Utility Functions ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Handles automatically replicating simple characters sequences, like turning '(' into
 " '(*)' (where * is the cursor position.) Whichever specification is found first is
@@ -702,6 +770,7 @@ endfunction
 
 " Adds or removes a '*' from the environment name.
 function vit#ChangeCurrentTeXEnvStar()
+    let [clnum, ccol] = [line('.'), col('.')]
     let [envname, slnum, scol, elnum, ecol] = vitutil#CurrentTeXEnvPositions()
     if empty(envname) || (slnum >= elnum) || slnum == 0 | return | endif
     " either add or remove * based on what is there already
@@ -716,11 +785,16 @@ function vit#ChangeCurrentTeXEnvStar()
     endfor
     " disable highlighting just in case
     noh
+    " restore cursor pos
+    call cursor(clnum, ccol)
 endfunction
 
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~ MISC UTILITY FUNCTIONS ~~~~~~~~~~~~~~~~~~~~
-" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" }}}
+
+" Other Public Utility Functions {{{
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~ Other Public Utility Functions ~~~~~~~~~~~~~~~~~~~~
+" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 " Opens a read-only status buffer in another window.
 function vit#Status(buf)
@@ -773,3 +847,5 @@ function vit#Status(buf)
                 \ .'filetype=markdown\ nospell '.bufnr(statbuf)
 endfunction
 
+" }}}
+" vim: foldmethod=marker

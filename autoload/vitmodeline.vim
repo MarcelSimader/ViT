@@ -17,7 +17,6 @@
 "     'did_included': whether this was parsed already,
 "     'did_compiler': -"-,
 " }
-"
 
 " The regex starting a modeline.
 let s:modeline_pre = '^.*%\s*ViT\s\+'
@@ -165,4 +164,3 @@ function s:Compiler(ctx)
     " success
     return 1
 endfunction
-
